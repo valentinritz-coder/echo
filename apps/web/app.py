@@ -76,12 +76,21 @@ def list_entries(user_id: str) -> list[dict[str, Any]]:
         return []
 
 
+@st.cache_data(show_spinner=False, max_entries=128)
+def fetch_audio_bytes(entry_id: str) -> bytes:
+    response = requests.get(f"{API_BASE_URL}/entries/{entry_id}/audio", timeout=30)
+    if response.status_code >= 400:
+        raise RuntimeError(api_json_error(response))
+    return response.content
+
+
 def delete_entry(entry_id: str) -> None:
     try:
         response = requests.delete(f"{API_BASE_URL}/entries/{entry_id}", timeout=10)
         if response.status_code >= 400:
             st.error(f"Suppression impossible: {api_json_error(response)}")
             return
+        fetch_audio_bytes.clear()
         st.success("Entrée supprimée")
     except requests.RequestException as exc:
         st.error(f"Erreur réseau: {exc}")
@@ -124,7 +133,20 @@ with tab_library:
             with st.container(border=True):
                 st.write(f"Entry: `{entry['id']}`")
                 st.write(f"Question ID: {entry['question_id']} · Taille: {entry['audio_size']} octets")
-                st.audio(f"{API_BASE_URL}/entries/{entry['id']}/audio", format=entry["audio_mime"])
+                if st.button("▶ Lire", key=f"play-{entry['id']}"):
+                    try:
+                        audio_bytes = fetch_audio_bytes(entry["id"])
+                    except (requests.RequestException, RuntimeError) as exc:
+                        st.error(f"Lecture impossible: {exc}")
+                    else:
+                        st.audio(audio_bytes, format=entry["audio_mime"])
+                        st.download_button(
+                            "Télécharger",
+                            data=audio_bytes,
+                            file_name=f"entry-{entry['id']}",
+                            mime=entry["audio_mime"],
+                            key=f"download-{entry['id']}",
+                        )
                 if st.button("Supprimer", key=f"delete-{entry['id']}"):
                     delete_entry(entry["id"])
                     st.rerun()
