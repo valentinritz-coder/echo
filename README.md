@@ -25,9 +25,12 @@ La base SQLite est stockée dans `data/echo.db` (monté dans `/app/data` côté 
 Commandes de migration (depuis `services/api`) :
 
 ```bash
+DATA_DIR=<repo>/data alembic upgrade head
 alembic upgrade head
 alembic downgrade -1
 ```
+
+En local, définir `DATA_DIR` garantit que les migrations visent la même base que l'application.
 
 > L'application crée aussi les tables au démarrage pour éviter un écran vide en local, mais le flux recommandé reste Alembic.
 
