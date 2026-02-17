@@ -1,5 +1,136 @@
 # echo-mvp
 
+## Quickstart Windows (Docker)
+
+### A) Ouvrir PowerShell dans le dossier du repo
+
+```powershell
+cd C:\Users\Valentin\Documents\echo
+```
+
+### B) Mettre à jour le repo depuis GitHub
+
+```powershell
+git status
+git pull
+```
+
+Si `git pull` refuse à cause de modifications locales non commit:
+
+```powershell
+git stash push -m "wip"
+git pull
+git stash pop
+```
+
+### C) Préparer le fichier `.env` (si absent)
+
+Si `.env` n'existe pas:
+
+```powershell
+copy .env.example .env
+```
+
+Alternative PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+### D) Créer les dossiers de données (DB + audios)
+
+```powershell
+mkdir data -ErrorAction SilentlyContinue
+mkdir data\audio -ErrorAction SilentlyContinue
+```
+
+### E) Démarrer Docker Desktop
+
+Docker Desktop doit être lancé et en état **Running**.
+
+Vérifier les commandes Docker:
+
+```powershell
+docker --version
+docker compose version
+```
+
+### F) Lancer l'app avec Docker Compose
+
+Première fois (ou après changements):
+
+```powershell
+docker compose up --build
+```
+
+Variante en arrière-plan:
+
+```powershell
+docker compose up -d --build
+```
+
+### G) Appliquer les migrations Alembic
+
+Indispensable au premier run, et après ajout de nouvelles migrations.
+
+Si la DB est vide, l'API logge un warning du type: `Database not initialized. Run: alembic upgrade head`.
+
+Lancer la migration:
+
+```powershell
+docker compose exec api alembic upgrade head
+```
+
+Vérification optionnelle:
+
+```powershell
+docker compose exec api alembic current
+```
+
+### H) Vérifier que tout tourne
+
+API:
+
+```powershell
+curl http://localhost:8000/health
+```
+
+Web:
+
+- ouvrir http://localhost:8501
+
+Données persistées sur l'hôte:
+
+- DB: `.\data\echo.db`
+- audios: `.\data\audio\`
+
+### I) Commandes utiles
+
+Voir les conteneurs:
+
+```powershell
+docker compose ps
+```
+
+Logs:
+
+```powershell
+docker compose logs -f api
+docker compose logs -f web
+```
+
+Stop:
+
+```powershell
+docker compose down
+```
+
+Restart sans rebuild:
+
+```powershell
+docker compose restart api web
+```
+
 MVP "capsule de vie" — Phase 2 (SQLite + upload audio + bibliothèque, sans IA).
 
 ## Prérequis
@@ -22,17 +153,26 @@ Puis ouvrir:
 
 La base SQLite est stockée dans `data/echo.db` (monté dans `/app/data` côté conteneur).
 
-Commandes de migration (depuis `services/api`) :
+Le schéma n'est **pas** créé automatiquement au démarrage de l'API. Si la DB n'est pas initialisée, l'API logge un warning et vous devez appliquer les migrations Alembic.
+
+En Docker:
 
 ```bash
-DATA_DIR=<repo>/data alembic upgrade head
+docker compose exec api alembic upgrade head
+```
+
+En local (sans Docker, depuis `services/api`):
+
+```bash
+DATA_DIR=./data alembic upgrade head
+```
+
+Autres commandes utiles Alembic (depuis `services/api`) :
+
+```bash
 alembic upgrade head
 alembic downgrade -1
 ```
-
-En local, définir `DATA_DIR` garantit que les migrations visent la même base que l'application.
-
-> L'application crée aussi les tables au démarrage pour éviter un écran vide en local, mais le flux recommandé reste Alembic.
 
 ## Flux fonctionnel MVP
 
@@ -42,7 +182,8 @@ En local, définir `DATA_DIR` garantit que les migrations visent la même base q
    - upload audio (multipart) via `POST /entries`
 3. Onglet **Bibliothèque**:
    - liste `GET /entries?user_id=...`
-   - lecture audio via `GET /entries/{id}/audio`
+   - lecture audio via `GET /entries/{id}/audio` (en Docker, Streamlit récupère les bytes côté serveur/proxy au clic **▶ Lire**)
+   - bouton **Télécharger** avec un nom de fichier incluant une extension cohérente avec `audio_mime`
    - suppression via `DELETE /entries/{id}`
 
 ## Contraintes upload
