@@ -1,6 +1,6 @@
 # echo-mvp
 
-MVP "capsule de vie" — squelette technique uniquement (API FastAPI + front Streamlit + outillage local).
+MVP "capsule de vie" — Phase 2 (SQLite + upload audio + bibliothèque, sans IA).
 
 ## Prérequis
 
@@ -18,7 +18,68 @@ Puis ouvrir:
 - API: http://localhost:8000/health
 - Web: http://localhost:8501
 
-La page Streamlit tente automatiquement un appel `GET /health` vers l'API et affiche l'état.
+## Base SQLite + migrations
+
+La base SQLite est stockée dans `data/echo.db` (monté dans `/app/data` côté conteneur).
+
+Commandes de migration (depuis `services/api`) :
+
+```bash
+alembic upgrade head
+alembic downgrade -1
+```
+
+> L'application crée aussi les tables au démarrage pour éviter un écran vide en local, mais le flux recommandé reste Alembic.
+
+## Flux fonctionnel MVP
+
+1. Dans Streamlit, saisir un `user_id` (auth simplifiée de phase 2).
+2. Onglet **Question du jour**:
+   - récupère `GET /questions/today`
+   - upload audio (multipart) via `POST /entries`
+3. Onglet **Bibliothèque**:
+   - liste `GET /entries?user_id=...`
+   - lecture audio via `GET /entries/{id}/audio`
+   - suppression via `DELETE /entries/{id}`
+
+## Contraintes upload
+
+- Taille max: **25 MB**
+- MIME autorisés:
+  - `audio/mpeg`
+  - `audio/mp4`
+  - `audio/x-m4a`
+  - `audio/wav`
+  - `audio/ogg`
+- Stockage fichier: `data/audio/{entry_id}.{ext}` avec `entry_id` UUID
+- `DELETE /entries/{id}` supprime la ligne DB + le fichier audio
+
+## Endpoints API
+
+- `GET /health`
+- `GET /version`
+- `GET /questions/today`
+- `POST /entries` (multipart: `user_id`, `question_id`, `audio_file`)
+- `GET /entries?user_id=...`
+- `GET /entries/{id}`
+- `GET /entries/{id}/audio`
+- `DELETE /entries/{id}`
+
+Erreurs JSON harmonisées pour validation et erreurs métier (`422`, `404`, `500`).
+
+## Tests
+
+Depuis `services/api`:
+
+```bash
+pip install -e ".[dev]"
+pytest
+```
+
+Les tests couvrent le minimum demandé:
+- create/list/delete
+- 404
+- validation MIME
 
 ## Variables d'environnement
 
@@ -46,10 +107,17 @@ Exemple dans `.env.example`:
 │   └── product.md
 ├── services/
 │   └── api/
+│       ├── alembic/
+│       │   ├── env.py
+│       │   └── versions/
 │       ├── app/
-│       │   ├── __init__.py
+│       │   ├── db.py
 │       │   ├── main.py
+│       │   ├── models.py
+│       │   ├── schemas.py
 │       │   └── settings.py
+│       ├── tests/
+│       ├── alembic.ini
 │       ├── Dockerfile
 │       └── pyproject.toml
 ├── .env.example
@@ -57,26 +125,3 @@ Exemple dans `.env.example`:
 ├── docker-compose.yml
 └── Makefile
 ```
-
-## Commandes utiles
-
-```bash
-make setup   # crée .env si absent
-make up      # lance api + web
-make down    # stoppe les services
-make logs    # logs en continu
-```
-
-## Portée de cette tâche
-
-Inclus:
-- squelette projet
-- endpoints API `/health` et `/version`
-- page Streamlit minimale avec check API
-- docs produit + confidentialité
-
-Exclu (volontairement):
-- auth
-- base de données
-- upload audio
-- transcription IA
