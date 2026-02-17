@@ -7,6 +7,16 @@ import streamlit as st
 PROJECT_NAME = "echo-mvp"
 API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
 ALLOWED_TYPES = ["mp3", "m4a", "mp4", "wav", "ogg"]
+MIME_TO_EXT = {
+    "audio/mpeg": "mp3",
+    "audio/mp4": "m4a",
+    "audio/x-m4a": "m4a",
+    "audio/wav": "wav",
+    "audio/x-wav": "wav",
+    "audio/ogg": "ogg",
+    "audio/webm": "webm",
+    "audio/3gpp": "3gp",
+}
 
 
 st.set_page_config(page_title=PROJECT_NAME, layout="wide")
@@ -84,6 +94,14 @@ def fetch_audio_bytes(entry_id: str) -> bytes:
     return response.content
 
 
+def download_filename(entry: dict[str, Any]) -> str:
+    mime = (entry.get("audio_mime") or "").lower()
+    ext = MIME_TO_EXT.get(mime)
+    if ext:
+        return f"entry-{entry['id']}.{ext}"
+    return f"entry-{entry['id']}"
+
+
 def delete_entry(entry_id: str) -> None:
     try:
         response = requests.delete(f"{API_BASE_URL}/entries/{entry_id}", timeout=10)
@@ -143,7 +161,7 @@ with tab_library:
                         st.download_button(
                             "Télécharger",
                             data=audio_bytes,
-                            file_name=f"entry-{entry['id']}",
+                            file_name=download_filename(entry),
                             mime=entry["audio_mime"],
                             key=f"download-{entry['id']}",
                         )
