@@ -1,4 +1,6 @@
+import os
 from logging.config import fileConfig
+from pathlib import Path
 
 from alembic import context
 from sqlalchemy import engine_from_config, pool
@@ -7,6 +9,12 @@ from app.db import Base
 from app.models import Entry, Question  # noqa: F401
 
 config = context.config
+
+repo_root = Path(__file__).resolve().parents[2]
+data_dir = Path(os.getenv("DATA_DIR") or (repo_root / "data"))
+data_dir.mkdir(parents=True, exist_ok=True)
+db_url = f"sqlite:///{(data_dir / 'echo.db').as_posix()}"
+config.set_main_option("sqlalchemy.url", db_url)
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
