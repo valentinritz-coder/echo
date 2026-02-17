@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: ./services/api
+    env_file:
+      - .env
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATA_DIR: /app/data
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: ./apps/web
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: ${API_BASE_URL:-http://api:8000}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8501:8501"
+    depends_on:
+      - api
