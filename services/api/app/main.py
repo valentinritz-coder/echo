@@ -1,26 +1,34 @@
 from datetime import date
+import logging
 from pathlib import Path
 import uuid
 
 from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import select
+from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
-from app.db import Base, engine, get_db
+from app.db import engine, get_db
 from app.models import Entry, Question
 from app.schemas import EntryOut, QuestionOut
 from app.settings import settings
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
+logger = logging.getLogger(__name__)
 
 ALLOWED_MIME_TYPES = {
-    "audio/mpeg": "mp3",
-    "audio/mp4": "mp4",
-    "audio/x-m4a": "m4a",
-    "audio/wav": "wav",
-    "audio/ogg": "ogg",
+    "audio/mpeg": ".mp3",
+    "audio/mp4": ".m4a",
+    "audio/x-m4a": ".m4a",
+    "audio/wav": ".wav",
+    "audio/x-wav": ".wav",
+    "audio/ogg": ".ogg",
+    "audio/aac": ".aac",
+    "audio/3gpp": ".3gp",
+    "audio/3gpp2": ".3g2",
+    "audio/webm": ".webm",
+    "audio/aiff": ".aiff",
 }
 
 SEED_QUESTIONS: list[tuple[str, str]] = [
@@ -41,14 +49,19 @@ SEED_QUESTIONS: list[tuple[str, str]] = [
 def startup() -> None:
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.audio_dir.mkdir(parents=True, exist_ok=True)
-    Base.metadata.create_all(bind=engine)
+    if not inspect(engine).has_table("entries"):
+        logger.warning("Database not initialized. Run: alembic upgrade head")
 
 
 @app.exception_handler(HTTPException)
 def http_exception_handler(_, exc: HTTPException) -> JSONResponse:
+    if isinstance(exc.detail, dict) and {"code", "message"}.issubset(exc.detail):
+        error = {"code": str(exc.detail["code"]), "message": str(exc.detail["message"])}
+    else:
+        error = {"code": str(exc.status_code), "message": str(exc.detail)}
     return JSONResponse(
         status_code=exc.status_code,
-        content={"error": {"code": str(exc.status_code), "message": str(exc.detail)}},
+        content={"error": error},
     )
 
 
@@ -111,15 +124,18 @@ async def create_entry(
 
     content_type = audio_file.content_type or ""
     if content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(status_code=422, detail="Unsupported audio MIME type")
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "unsupported_mime", "message": "Unsupported audio MIME type"},
+        )
 
     file_bytes = await audio_file.read()
     if len(file_bytes) > settings.max_upload_bytes:
-        raise HTTPException(status_code=422, detail="Audio file exceeds 25 MB")
+        raise HTTPException(status_code=413, detail="Audio file exceeds 25 MB")
 
     entry_id = str(uuid.uuid4())
     ext = ALLOWED_MIME_TYPES[content_type]
-    relative_path = Path("audio") / f"{entry_id}.{ext}"
+    relative_path = Path("audio") / f"{entry_id}{ext}"
     absolute_path = settings.data_dir / relative_path
     absolute_path.parent.mkdir(parents=True, exist_ok=True)
     absolute_path.write_bytes(file_bytes)
