@@ -3,15 +3,24 @@ import logging
 from pathlib import Path
 import uuid
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import Body, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
+from app.ai.utils import compute_sha256, dumps_json, loads_json, now_utc
 from app.db import engine, get_db
-from app.models import Entry, Question
-from app.schemas import EntryOut, QuestionOut
+from app.models import AiRun, Entry, Question
+from app.schemas import (
+    AIProcessQueuedResponse,
+    AIProcessRequest,
+    AIProcessReusedResponse,
+    AIRunOut,
+    EntryAIStatusOut,
+    EntryOut,
+    QuestionOut,
+)
 from app.settings import settings
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
@@ -98,6 +107,28 @@ def _ensure_questions_seeded(db: Session) -> None:
     for idx, (text, category) in enumerate(SEED_QUESTIONS, start=1):
         db.add(Question(id=idx, text=text, category=category, is_active=True))
     db.commit()
+
+
+def _to_ai_run_out(run: AiRun) -> AIRunOut:
+    return AIRunOut(
+        id=run.id,
+        entry_id=run.entry_id,
+        status=run.status,
+        requested_at=run.requested_at,
+        started_at=run.started_at,
+        finished_at=run.finished_at,
+        tasks=loads_json(run.tasks_json) or [],
+        pipeline_version=run.pipeline_version,
+        audio_sha256=run.audio_sha256,
+        stt_model=run.stt_model,
+        llm_model=run.llm_model,
+        transcript_text=run.transcript_text,
+        transcript_json=loads_json(run.transcript_json),
+        summary_text=run.summary_text,
+        keypoints_json=loads_json(run.keypoints_json),
+        error_message=run.error_message,
+        metrics_json=loads_json(run.metrics_json),
+    )
 
 
 @app.get("/questions/today", response_model=QuestionOut)
@@ -194,3 +225,110 @@ def delete_entry(entry_id: str, db: Session = Depends(get_db)) -> dict[str, str]
     db.commit()
     path.unlink(missing_ok=True)
     return {"status": "deleted", "id": entry_id}
+
+
+@app.post(
+    "/entries/{entry_id}/ai/process",
+    response_model=AIProcessReusedResponse | AIProcessQueuedResponse,
+)
+def process_entry_ai(
+    entry_id: str,
+    payload: AIProcessRequest | None = Body(default=None),
+    db: Session = Depends(get_db),
+) -> AIProcessReusedResponse | AIProcessQueuedResponse | JSONResponse:
+    if payload is None:
+        payload = AIProcessRequest()
+    entry = db.get(Entry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    audio_path = settings.data_dir / entry.audio_path
+    if not audio_path.exists():
+        raise HTTPException(status_code=404, detail="Audio file not found")
+
+    if payload.force:
+        sha256_value = compute_sha256(audio_path)
+        entry.audio_sha256 = sha256_value
+    else:
+        sha256_value = entry.audio_sha256
+        if not sha256_value:
+            sha256_value = compute_sha256(audio_path)
+            entry.audio_sha256 = sha256_value
+
+    tasks_list = payload.tasks or ["transcribe", "summarize"]
+    tasks_json = dumps_json(tasks_list)
+
+    if not payload.force and entry.ai_last_run_id is not None:
+        last_run = db.get(AiRun, entry.ai_last_run_id)
+        if (
+            last_run is not None
+            and last_run.status == "done"
+            and last_run.audio_sha256 == sha256_value
+            and last_run.tasks_json == tasks_json
+            and last_run.pipeline_version == payload.pipeline_version
+        ):
+            entry.ai_status = "done"
+            entry.ai_updated_at = now_utc()
+            db.add(entry)
+            db.commit()
+            return JSONResponse(
+                status_code=200,
+                content=AIProcessReusedResponse(
+                    entry_id=entry.id,
+                    status="done",
+                    last_run_id=last_run.id,
+                    reused=True,
+                ).model_dump(),
+            )
+
+    run = AiRun(
+        entry_id=entry.id,
+        status="pending",
+        requested_at=now_utc(),
+        tasks_json=tasks_json,
+        pipeline_version=payload.pipeline_version,
+        audio_sha256=sha256_value,
+    )
+    db.add(run)
+    db.flush()
+
+    entry.ai_status = "pending"
+    entry.ai_last_run_id = run.id
+    entry.ai_updated_at = now_utc()
+    db.add(entry)
+    db.commit()
+
+    return JSONResponse(
+        status_code=202,
+        content=AIProcessQueuedResponse(
+            entry_id=entry.id,
+            status="pending",
+            run_id=run.id,
+            reused=False,
+        ).model_dump(),
+    )
+
+
+@app.get("/entries/{entry_id}/ai", response_model=EntryAIStatusOut)
+def get_entry_ai(entry_id: str, db: Session = Depends(get_db)) -> EntryAIStatusOut:
+    entry = db.get(Entry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+
+    last_run = db.get(AiRun, entry.ai_last_run_id) if entry.ai_last_run_id is not None else None
+
+    return EntryAIStatusOut(
+        entry_id=entry.id,
+        ai_status=entry.ai_status,
+        ai_last_run_id=entry.ai_last_run_id,
+        ai_updated_at=entry.ai_updated_at,
+        last_run=_to_ai_run_out(last_run) if last_run is not None else None,
+    )
+
+
+@app.get("/ai/runs/{run_id}", response_model=AIRunOut)
+def get_ai_run(run_id: int, db: Session = Depends(get_db)) -> AIRunOut:
+    run = db.get(AiRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="AI run not found")
+    return _to_ai_run_out(run)

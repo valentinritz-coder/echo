@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.db import Base
-from app.models import Entry, Question  # noqa: F401  (import needed for metadata)
+from app.models import AiRun, Entry, Question  # noqa: F401  (import needed for metadata)
 
 # Alembic Config object, provides access to the values within the .ini file.
 config = context.config

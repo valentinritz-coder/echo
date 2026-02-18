@@ -1,0 +1,8 @@
+services:
+  api:
+    volumes:
+      - ./data_sandbox:/app/data
+
+  web:
+    volumes:
+      - ./data_sandbox:/app/data
