@@ -44,9 +44,9 @@
 - `README.md` : décrit le MVP, les prérequis, le démarrage Docker, les variables d'environnement, la structure projet, les commandes `make`, et ce qui est inclus/exclu en phase 1.
 - `docker-compose.yml` : définit 2 services (`api`, `web`), ports exposés (`8000`, `8501`), variables d'environnement, montage `./data:/app/data`, et dépendance `web -> api`.
 - `.env.example` : valeurs par défaut pour `APP_ENV`, `DATA_DIR`, et `API_BASE_URL`.
-- `services/api/app/main.py` : FastAPI minimal avec endpoints `GET /health` (`{"status":"ok"}`) et `GET /version` (`name`, `version`).
+- `services/api/app/main.py` : FastAPI minimal avec endpoints `GET /api/v1/health` (`{"status":"ok"}`) et `GET /api/v1/version` (`name`, `version`).
 - `services/api/app/settings.py` : configuration via `pydantic-settings` (`app_name`, `app_version`, `app_env`, `data_dir`) avec lecture `.env`.
-- `apps/web/app.py` : app Streamlit qui affiche le projet et teste l'API via `requests.get({API_BASE_URL}/health)` avec message succès/avertissement.
+- `apps/web/app.py` : app Streamlit qui affiche le projet et teste l'API via `requests.get({API_BASE_URL}/api/v1/health)` avec message succès/avertissement.
 - `docs/product.md` : vision produit MVP “capsule de vie”, stockage local, progression par itérations, robustesse du socle.
 - `docs/privacy.md` : principes de confidentialité (local-first, consentement, suppression utilisateur, sensibilité des audios).
 
@@ -64,8 +64,8 @@ Exécution locale des 2 apps Python :
 - API lancée avec Uvicorn sur `:8000`
 - Web Streamlit lancé sur `:8501` avec `API_BASE_URL=http://127.0.0.1:8000`
 - Checks validés :
-  - `GET /health` retourne `{"status":"ok"}`
-  - `GET /version` retourne `{"name":"echo-mvp","version":"0.1.0"}`
+  - `GET /api/v1/health` retourne `{"status":"ok"}`
+  - `GET /api/v1/version` retourne `{"name":"echo-mvp","version":"0.1.0"}`
   - L'interface Streamlit affiche bien: `API en ligne: {'status': 'ok'}`
 
 Aucune correction de code n'a été nécessaire.
@@ -104,7 +104,7 @@ docker compose up --build
 - [ ] Valider type MIME et taille max côté API.
 - [ ] Stocker les fichiers audio dans `data/audio` avec nommage robuste (UUID).
 - [ ] Gérer erreurs API standardisées (validation, not found, IO).
-- [ ] Ajouter tests API (health/version + CRUD + upload).
+- [ ] Ajouter tests API (/api/v1/health, /api/v1/version + CRUD + upload).
 - [ ] Mettre à jour Streamlit: formulaire upload + liste des enregistrements.
 - [ ] Afficher statut upload + erreurs utilisateur dans Streamlit.
 - [ ] Mettre à jour `README.md` (setup DB, endpoints, flux upload).

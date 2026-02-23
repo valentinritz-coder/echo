@@ -43,14 +43,14 @@
   - `RequestValidationError` => code 422 avec `details`
   - exception générique => code 500 standardisé
 - Routes:
-  - `GET /health`
-  - `GET /version`
-  - `GET /questions/today` (seed auto + rotation déterministe via date)
-  - `POST /entries` (multipart `user_id`, `question_id`, `audio_file`; validation MIME + taille; écriture disque + insertion DB)
-  - `GET /entries?user_id=...`
-  - `GET /entries/{entry_id}`
-  - `GET /entries/{entry_id}/audio` (retourne `FileResponse`)
-  - `DELETE /entries/{entry_id}` (supprime DB puis fichier)
+  - `GET /api/v1/health`
+  - `GET /api/v1/version`
+  - `GET /api/v1/questions/today` (seed auto + rotation déterministe via date)
+  - `POST /api/v1/entries` (multipart `user_id`, `question_id`, `audio_file`; validation MIME + taille; écriture disque + insertion DB)
+  - `GET /api/v1/entries?user_id=...`
+  - `GET /api/v1/entries/{entry_id}`
+  - `GET /api/v1/entries/{entry_id}/audio` (retourne `FileResponse`)
+  - `DELETE /api/v1/entries/{entry_id}` (supprime DB puis fichier)
 
 ### `services/api/app/settings.py`
 - Variables d'env/settings (avec defaults):
@@ -105,12 +105,12 @@
 - Lit `API_BASE_URL` (default `http://api:8000`) et `ALLOWED_TYPES` upload.
 - Sidebar: saisie `user_id`, affichage endpoint API.
 - Parcours utilisateur:
-  - vérification santé API (`GET /health`)
-  - récupération question (`GET /questions/today`)
-  - upload multipart (`POST /entries`)
-  - listing (`GET /entries?user_id=...`)
-  - lecture audio (`GET /entries/{id}/audio` via `st.audio`)
-  - suppression (`DELETE /entries/{id}` + rerun)
+  - vérification santé API (`GET /api/v1/health`)
+  - récupération question (`GET /api/v1/questions/today`)
+  - upload multipart (`POST /api/v1/entries`)
+  - listing (`GET /api/v1/entries?user_id=...`)
+  - lecture audio (`GET /api/v1/entries/{id}/audio` via `st.audio`)
+  - suppression (`DELETE /api/v1/entries/{id}` + rerun)
 - Gestion erreurs API via extraction JSON homogène (`api_json_error`).
 
 ### `docker-compose.yml`
@@ -145,7 +145,7 @@
   - API écrit `audio/{uuid}.{ext}` sous `settings.data_dir`.
   - En docker, `DATA_DIR=/app/data` et volume `./data:/app/data` => persiste sur host dans `./data/audio`.
 - **Persistance après redémarrage**: validée.
-  - Test manuel: création d'entrée audio, arrêt API, redémarrage API, `GET /entries/{id}/audio` retourne `200`.
+  - Test manuel: création d'entrée audio, arrêt API, redémarrage API, `GET /api/v1/entries/{id}/audio` retourne `200`.
 - **Web -> API via `API_BASE_URL` docker-compose**: cohérent.
   - Compose injecte `API_BASE_URL=${API_BASE_URL:-http://api:8000}` côté `web`.
   - L'app Streamlit lit `API_BASE_URL` et appelle cette base URL pour tous endpoints.
@@ -156,9 +156,9 @@
   - Résultat final: `3 passed`.
 - `cd services/api && python -c "import app.main; print('ok')"`
   - Import OK.
-- `curl http://127.0.0.1:8000/health`
+- `curl http://127.0.0.1:8000/api/v1/health`
   - `{"status":"ok"}`.
-- `curl http://127.0.0.1:8000/questions/today`
+- `curl http://127.0.0.1:8000/api/v1/questions/today`
   - Réponse 200 avec question seed.
 
 ## 5) Top 10 risques / bugs probables + reproduction
@@ -172,7 +172,7 @@
 4. **Limite taille en RAM** (lecture complète en mémoire)
    - Repro: upload proche de 25MB en parallèle x N requêtes => pression mémoire process.
 5. **Course condition suppression/lecture**
-   - Repro: lancer `GET /entries/{id}/audio` pendant `DELETE /entries/{id}` => intermittence 404.
+   - Repro: lancer `GET /api/v1/entries/{id}/audio` pendant `DELETE /api/v1/entries/{id}` => intermittence 404.
 6. **Orphelins fichiers si crash entre write disque et commit DB**
    - Repro: simuler crash après `write_bytes` avant `db.commit` => fichier présent sans entrée DB.
 7. **Orphelins DB si crash après commit avant unlink delete**
@@ -186,10 +186,10 @@
 
 ## 6) Checklist “Phase 2 DONE” (critères vérifiables)
 
-- [ ] Lancer local sans Docker (`uvicorn app.main:app`) + `/health` OK
+- [ ] Lancer local sans Docker (`uvicorn app.main:app`) + `/api/v1/health` OK
 - [ ] Lancer Docker (`docker compose up --build`) + API/Web accessibles
 - [ ] Upload audio OK (MIME autorisé, <=25MB)
-- [ ] Lecture audio OK (`GET /entries/{id}/audio` + Streamlit)
+- [ ] Lecture audio OK (`GET /api/v1/entries/{id}/audio` + Streamlit)
 - [ ] Suppression OK (DB + fichier supprimés)
 - [ ] Redémarrage conserve la bibliothèque (DB SQLite + fichiers audio persistants)
 - [ ] Tests API verts (`pytest`)

@@ -5,7 +5,8 @@ import requests
 import streamlit as st
 
 PROJECT_NAME = "echo-mvp"
-API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000")
+API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
+API_BASE_PATH = "/api/v1"
 ALLOWED_TYPES = ["mp3", "m4a", "mp4", "wav", "ogg"]
 MIME_TO_EXT = {
     "audio/mpeg": "mp3",
@@ -44,7 +45,7 @@ def api_json_error(response: requests.Response) -> str:
 
 def check_api_health() -> None:
     try:
-        response = requests.get(f"{API_BASE_URL}/health", timeout=5)
+        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/health", timeout=5)
         response.raise_for_status()
         st.success("API connectée")
     except requests.RequestException as exc:
@@ -53,7 +54,7 @@ def check_api_health() -> None:
 
 def fetch_today_question() -> dict[str, Any] | None:
     try:
-        response = requests.get(f"{API_BASE_URL}/questions/today", timeout=10)
+        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/questions/today", timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
@@ -65,7 +66,7 @@ def upload_entry(user_id: str, question_id: int, uploaded_file: Any) -> None:
     try:
         files = {"audio_file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
         data = {"user_id": user_id, "question_id": str(question_id)}
-        response = requests.post(f"{API_BASE_URL}/entries", data=data, files=files, timeout=30)
+        response = requests.post(f"{API_BASE_URL}{API_BASE_PATH}/entries", data=data, files=files, timeout=30)
         if response.status_code >= 400:
             st.error(f"Upload refusé: {api_json_error(response)}")
             return
@@ -76,7 +77,7 @@ def upload_entry(user_id: str, question_id: int, uploaded_file: Any) -> None:
 
 def list_entries(user_id: str) -> list[dict[str, Any]]:
     try:
-        response = requests.get(f"{API_BASE_URL}/entries", params={"user_id": user_id}, timeout=10)
+        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries", params={"user_id": user_id}, timeout=10)
         if response.status_code >= 400:
             st.error(f"Impossible de charger la bibliothèque: {api_json_error(response)}")
             return []
@@ -88,7 +89,7 @@ def list_entries(user_id: str) -> list[dict[str, Any]]:
 
 @st.cache_data(show_spinner=False, max_entries=128)
 def fetch_audio_bytes(entry_id: str) -> bytes:
-    response = requests.get(f"{API_BASE_URL}/entries/{entry_id}/audio", timeout=30)
+    response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}/audio", timeout=30)
     if response.status_code >= 400:
         raise RuntimeError(api_json_error(response))
     return response.content
@@ -104,7 +105,7 @@ def download_filename(entry: dict[str, Any]) -> str:
 
 def delete_entry(entry_id: str) -> None:
     try:
-        response = requests.delete(f"{API_BASE_URL}/entries/{entry_id}", timeout=10)
+        response = requests.delete(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}", timeout=10)
         if response.status_code >= 400:
             st.error(f"Suppression impossible: {api_json_error(response)}")
             return
