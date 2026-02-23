@@ -6,7 +6,7 @@ from alembic import context
 from sqlalchemy import engine_from_config, pool
 
 from app.db import Base
-from app.models import AiRun, Entry, Question  # noqa: F401  (import needed for metadata)
+from app.models import Entry, Question  # noqa: F401  (import needed for metadata)
 
 # Alembic Config object, provides access to the values within the .ini file.
 config = context.config
@@ -31,12 +31,6 @@ target_metadata = Base.metadata
 
 
 def run_migrations_offline() -> None:
-    """
-    Run migrations in 'offline' mode.
-
-    This configures the context with just a URL and not an Engine.
-    Calls to context.execute() emit the given string to the script output.
-    """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
         url=url,
@@ -51,12 +45,6 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
-    """
-    Run migrations in 'online' mode.
-
-    In this scenario we need to create an Engine and associate a connection
-    with the context.
-    """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

@@ -131,7 +131,7 @@ Restart sans rebuild:
 docker compose restart api web
 ```
 
-MVP "capsule de vie" — Phase 2 (SQLite + upload audio + bibliothèque, sans IA).
+MVP "capsule de vie" — Phase 2.5 (SQLite + upload audio + bibliothèque).
 
 ## Prérequis
 
@@ -230,7 +230,6 @@ Les tests couvrent le minimum demandé:
 Exemple dans `.env.example`:
 
 - `APP_ENV`: environnement applicatif (`development` par défaut)
-- `OPENAI_API_KEY`: optionnelle pour des tâches futures IA
 - `DATA_DIR`: dossier de données local (`./data`)
 - `API_BASE_URL`: URL de l'API consommée par Streamlit (`http://api:8000` dans Docker)
 

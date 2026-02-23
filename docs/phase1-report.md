@@ -43,7 +43,7 @@
 
 - `README.md` : décrit le MVP, les prérequis, le démarrage Docker, les variables d'environnement, la structure projet, les commandes `make`, et ce qui est inclus/exclu en phase 1.
 - `docker-compose.yml` : définit 2 services (`api`, `web`), ports exposés (`8000`, `8501`), variables d'environnement, montage `./data:/app/data`, et dépendance `web -> api`.
-- `.env.example` : valeurs par défaut pour `APP_ENV`, `OPENAI_API_KEY`, `DATA_DIR`, et `API_BASE_URL`.
+- `.env.example` : valeurs par défaut pour `APP_ENV`, `DATA_DIR`, et `API_BASE_URL`.
 - `services/api/app/main.py` : FastAPI minimal avec endpoints `GET /health` (`{"status":"ok"}`) et `GET /version` (`name`, `version`).
 - `services/api/app/settings.py` : configuration via `pydantic-settings` (`app_name`, `app_version`, `app_env`, `data_dir`) avec lecture `.env`.
 - `apps/web/app.py` : app Streamlit qui affiche le projet et teste l'API via `requests.get({API_BASE_URL}/health)` avec message succès/avertissement.
