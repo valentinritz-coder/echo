@@ -92,7 +92,7 @@ docker compose exec api alembic current
 API:
 
 ```powershell
-curl http://localhost:8000/health
+curl http://localhost:8000/api/v1/health
 ```
 
 Web:
@@ -146,7 +146,7 @@ docker compose up --build
 ```
 
 Puis ouvrir:
-- API: http://localhost:8000/health
+- API: http://localhost:8000/api/v1/health
 - Web: http://localhost:8501
 
 ## Base SQLite + migrations
@@ -178,13 +178,13 @@ alembic downgrade -1
 
 1. Dans Streamlit, saisir un `user_id` (auth simplifiée de phase 2).
 2. Onglet **Question du jour**:
-   - récupère `GET /questions/today`
-   - upload audio (multipart) via `POST /entries`
+   - récupère `GET /api/v1/questions/today`
+   - upload audio (multipart) via `POST /api/v1/entries`
 3. Onglet **Bibliothèque**:
-   - liste `GET /entries?user_id=...`
-   - lecture audio via `GET /entries/{id}/audio` (en Docker, Streamlit récupère les bytes côté serveur/proxy au clic **▶ Lire**)
+   - liste `GET /api/v1/entries?user_id=...`
+   - lecture audio via `GET /api/v1/entries/{id}/audio` (en Docker, Streamlit récupère les bytes côté serveur/proxy au clic **▶ Lire**)
    - bouton **Télécharger** avec un nom de fichier incluant une extension cohérente avec `audio_mime`
-   - suppression via `DELETE /entries/{id}`
+   - suppression via `DELETE /api/v1/entries/{id}`
 
 ## Contraintes upload
 
@@ -196,18 +196,18 @@ alembic downgrade -1
   - `audio/wav`
   - `audio/ogg`
 - Stockage fichier: `data/audio/{entry_id}.{ext}` avec `entry_id` UUID
-- `DELETE /entries/{id}` supprime la ligne DB + le fichier audio
+- `DELETE /api/v1/entries/{id}` supprime la ligne DB + le fichier audio
 
 ## Endpoints API
 
-- `GET /health`
-- `GET /version`
-- `GET /questions/today`
-- `POST /entries` (multipart: `user_id`, `question_id`, `audio_file`)
-- `GET /entries?user_id=...`
-- `GET /entries/{id}`
-- `GET /entries/{id}/audio`
-- `DELETE /entries/{id}`
+- `GET /api/v1/health`
+- `GET /api/v1/version`
+- `GET /api/v1/questions/today`
+- `POST /api/v1/entries` (multipart: `user_id`, `question_id`, `audio_file`)
+- `GET /api/v1/entries?user_id=...`
+- `GET /api/v1/entries/{id}`
+- `GET /api/v1/entries/{id}/audio`
+- `DELETE /api/v1/entries/{id}`
 
 Erreurs JSON harmonisées pour validation et erreurs métier (`422`, `404`, `500`).
 

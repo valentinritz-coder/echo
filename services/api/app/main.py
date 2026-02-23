@@ -3,7 +3,7 @@ import logging
 from pathlib import Path
 import uuid
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
@@ -16,6 +16,7 @@ from app.settings import settings
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 logger = logging.getLogger(__name__)
+api_v1_router = APIRouter(prefix="/api/v1")
 
 ALLOWED_MIME_TYPES = {
     "audio/mpeg": ".mp3",
@@ -81,12 +82,12 @@ def generic_exception_handler(_, __: Exception) -> JSONResponse:
     )
 
 
-@app.get("/health")
+@api_v1_router.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/version")
+@api_v1_router.get("/version")
 def version() -> dict[str, str]:
     return {"name": settings.app_name, "version": settings.app_version}
 
@@ -100,7 +101,7 @@ def _ensure_questions_seeded(db: Session) -> None:
     db.commit()
 
 
-@app.get("/questions/today", response_model=QuestionOut)
+@api_v1_router.get("/questions/today", response_model=QuestionOut)
 def get_question_today(db: Session = Depends(get_db)) -> Question:
     _ensure_questions_seeded(db)
     questions = db.execute(select(Question).where(Question.is_active.is_(True)).order_by(Question.id)).scalars().all()
@@ -110,7 +111,7 @@ def get_question_today(db: Session = Depends(get_db)) -> Question:
     return selected
 
 
-@app.post("/entries", response_model=EntryOut)
+@api_v1_router.post("/entries", response_model=EntryOut)
 async def create_entry(
     user_id: str = Form(...),
     question_id: int = Form(...),
@@ -154,7 +155,7 @@ async def create_entry(
     return entry
 
 
-@app.get("/entries", response_model=list[EntryOut])
+@api_v1_router.get("/entries", response_model=list[EntryOut])
 def list_entries(user_id: str = Query(...), db: Session = Depends(get_db)) -> list[Entry]:
     entries = (
         db.execute(select(Entry).where(Entry.user_id == user_id).order_by(Entry.created_at.desc()))
@@ -164,7 +165,7 @@ def list_entries(user_id: str = Query(...), db: Session = Depends(get_db)) -> li
     return entries
 
 
-@app.get("/entries/{entry_id}", response_model=EntryOut)
+@api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
 def get_entry(entry_id: str, db: Session = Depends(get_db)) -> Entry:
     entry = db.get(Entry, entry_id)
     if entry is None:
@@ -172,7 +173,7 @@ def get_entry(entry_id: str, db: Session = Depends(get_db)) -> Entry:
     return entry
 
 
-@app.get("/entries/{entry_id}/audio")
+@api_v1_router.get("/entries/{entry_id}/audio")
 def get_entry_audio(entry_id: str, db: Session = Depends(get_db)) -> FileResponse:
     entry = db.get(Entry, entry_id)
     if entry is None:
@@ -183,7 +184,7 @@ def get_entry_audio(entry_id: str, db: Session = Depends(get_db)) -> FileRespons
     return FileResponse(path=path, media_type=entry.audio_mime, filename=path.name)
 
 
-@app.delete("/entries/{entry_id}")
+@api_v1_router.delete("/entries/{entry_id}")
 def delete_entry(entry_id: str, db: Session = Depends(get_db)) -> dict[str, str]:
     entry = db.get(Entry, entry_id)
     if entry is None:
@@ -194,3 +195,6 @@ def delete_entry(entry_id: str, db: Session = Depends(get_db)) -> dict[str, str]
     db.commit()
     path.unlink(missing_ok=True)
     return {"status": "deleted", "id": entry_id}
+
+
+app.include_router(api_v1_router)
