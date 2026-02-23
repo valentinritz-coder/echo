@@ -2,6 +2,7 @@ services:
   api:
     volumes:
       - ./data_sandbox:/app/data
+      - ./services/api/tests:/app/tests:ro
 
   web:
     volumes:
