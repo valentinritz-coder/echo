@@ -106,13 +106,14 @@ def _ensure_questions_seeded(db: Session) -> None:
         db.add(Question(id=idx, text=text, category=category, is_active=True))
     db.commit()
 
-
 def _seed_admin_user(db: Session) -> None:
     if settings.app_env != "development":
         return
     if not settings.admin_email or not settings.admin_password:
         return
-    if db.query(User).count() > 0:
+
+    existing = db.query(User).filter(User.email == settings.admin_email).first()
+    if existing is not None:
         return
 
     db.add(
@@ -123,7 +124,6 @@ def _seed_admin_user(db: Session) -> None:
         )
     )
     db.commit()
-
 
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
 def get_question_today(_: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Question:
