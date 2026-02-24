@@ -3,15 +3,17 @@ import logging
 from pathlib import Path
 import uuid
 
-from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from app.db import engine, get_db
-from app.models import Entry, Question
+from app.models import Entry, Question, User
+from app.routes.auth import router as auth_router
 from app.schemas import EntryOut, QuestionOut
+from app.security import get_current_user, hash_password
 from app.settings import settings
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
@@ -52,6 +54,10 @@ def startup() -> None:
     settings.audio_dir.mkdir(parents=True, exist_ok=True)
     if not inspect(engine).has_table("entries"):
         logger.warning("Database not initialized. Run: alembic upgrade head")
+        return
+
+    with Session(engine) as db:
+        _seed_admin_user(db)
 
 
 @app.exception_handler(HTTPException)
@@ -101,8 +107,26 @@ def _ensure_questions_seeded(db: Session) -> None:
     db.commit()
 
 
+def _seed_admin_user(db: Session) -> None:
+    if settings.app_env != "development":
+        return
+    if not settings.admin_email or not settings.admin_password:
+        return
+    if db.query(User).count() > 0:
+        return
+
+    db.add(
+        User(
+            email=settings.admin_email,
+            password_hash=hash_password(settings.admin_password),
+            is_active=True,
+        )
+    )
+    db.commit()
+
+
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
-def get_question_today(db: Session = Depends(get_db)) -> Question:
+def get_question_today(_: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Question:
     _ensure_questions_seeded(db)
     questions = db.execute(select(Question).where(Question.is_active.is_(True)).order_by(Question.id)).scalars().all()
     if not questions:
@@ -113,9 +137,9 @@ def get_question_today(db: Session = Depends(get_db)) -> Question:
 
 @api_v1_router.post("/entries", response_model=EntryOut)
 async def create_entry(
-    user_id: str = Form(...),
     question_id: int = Form(...),
     audio_file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Entry:
     _ensure_questions_seeded(db)
@@ -143,7 +167,7 @@ async def create_entry(
 
     entry = Entry(
         id=entry_id,
-        user_id=user_id,
+        user_id=current_user.id,
         question_id=question_id,
         audio_path=str(relative_path),
         audio_mime=content_type,
@@ -156,9 +180,9 @@ async def create_entry(
 
 
 @api_v1_router.get("/entries", response_model=list[EntryOut])
-def list_entries(user_id: str = Query(...), db: Session = Depends(get_db)) -> list[Entry]:
+def list_entries(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Entry]:
     entries = (
-        db.execute(select(Entry).where(Entry.user_id == user_id).order_by(Entry.created_at.desc()))
+        db.execute(select(Entry).where(Entry.user_id == current_user.id).order_by(Entry.created_at.desc()))
         .scalars()
         .all()
     )
@@ -166,17 +190,21 @@ def list_entries(user_id: str = Query(...), db: Session = Depends(get_db)) -> li
 
 
 @api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
-def get_entry(entry_id: str, db: Session = Depends(get_db)) -> Entry:
+def get_entry(entry_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Entry:
     entry = db.get(Entry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
 
 
 @api_v1_router.get("/entries/{entry_id}/audio")
-def get_entry_audio(entry_id: str, db: Session = Depends(get_db)) -> FileResponse:
+def get_entry_audio(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
     entry = db.get(Entry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
     path = settings.data_dir / entry.audio_path
     if not path.exists():
@@ -185,9 +213,13 @@ def get_entry_audio(entry_id: str, db: Session = Depends(get_db)) -> FileRespons
 
 
 @api_v1_router.delete("/entries/{entry_id}")
-def delete_entry(entry_id: str, db: Session = Depends(get_db)) -> dict[str, str]:
+def delete_entry(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
     entry = db.get(Entry, entry_id)
-    if entry is None:
+    if entry is None or entry.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Entry not found")
 
     path = settings.data_dir / entry.audio_path
@@ -197,4 +229,5 @@ def delete_entry(entry_id: str, db: Session = Depends(get_db)) -> dict[str, str]
     return {"status": "deleted", "id": entry_id}
 
 
+api_v1_router.include_router(auth_router)
 app.include_router(api_v1_router)
