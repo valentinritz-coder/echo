@@ -23,14 +23,12 @@ MIME_TO_EXT = {
 st.set_page_config(page_title=PROJECT_NAME, layout="wide")
 st.title("Echo MVP (capsule de vie)")
 
-if "user_id" not in st.session_state:
-    st.session_state.user_id = ""
-
-
-with st.sidebar:
-    st.header("Session")
-    st.session_state.user_id = st.text_input("user_id", value=st.session_state.user_id)
-    st.caption(f"API_BASE_URL: {API_BASE_URL}")
+if "access_token" not in st.session_state:
+    st.session_state.access_token = ""
+if "login_email" not in st.session_state:
+    st.session_state.login_email = os.getenv("ADMIN_EMAIL", "")
+if "login_password" not in st.session_state:
+    st.session_state.login_password = os.getenv("ADMIN_PASSWORD", "")
 
 
 def api_json_error(response: requests.Response) -> str:
@@ -52,9 +50,31 @@ def check_api_health() -> None:
         st.error(f"API indisponible: {exc}")
 
 
+def auth_headers() -> dict[str, str]:
+    if not st.session_state.access_token:
+        return {}
+    return {"Authorization": f"Bearer {st.session_state.access_token}"}
+
+
+def login() -> None:
+    try:
+        response = requests.post(
+            f"{API_BASE_URL}{API_BASE_PATH}/auth/login",
+            json={"email": st.session_state.login_email.strip(), "password": st.session_state.login_password},
+            timeout=10,
+        )
+        if response.status_code >= 400:
+            st.error(f"Connexion refusée: {api_json_error(response)}")
+            return
+        st.session_state.access_token = response.json().get("access_token", "")
+        st.success("Connexion réussie")
+    except requests.RequestException as exc:
+        st.error(f"Erreur réseau pendant la connexion: {exc}")
+
+
 def fetch_today_question() -> dict[str, Any] | None:
     try:
-        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/questions/today", timeout=10)
+        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/questions/today", headers=auth_headers(), timeout=10)
         response.raise_for_status()
         return response.json()
     except requests.RequestException as exc:
@@ -62,11 +82,17 @@ def fetch_today_question() -> dict[str, Any] | None:
         return None
 
 
-def upload_entry(user_id: str, question_id: int, uploaded_file: Any) -> None:
+def upload_entry(question_id: int, uploaded_file: Any) -> None:
     try:
         files = {"audio_file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-        data = {"user_id": user_id, "question_id": str(question_id)}
-        response = requests.post(f"{API_BASE_URL}{API_BASE_PATH}/entries", data=data, files=files, timeout=30)
+        data = {"question_id": str(question_id)}
+        response = requests.post(
+            f"{API_BASE_URL}{API_BASE_PATH}/entries",
+            data=data,
+            files=files,
+            headers=auth_headers(),
+            timeout=30,
+        )
         if response.status_code >= 400:
             st.error(f"Upload refusé: {api_json_error(response)}")
             return
@@ -75,9 +101,9 @@ def upload_entry(user_id: str, question_id: int, uploaded_file: Any) -> None:
         st.error(f"Erreur réseau pendant l'upload: {exc}")
 
 
-def list_entries(user_id: str) -> list[dict[str, Any]]:
+def list_entries() -> list[dict[str, Any]]:
     try:
-        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries", params={"user_id": user_id}, timeout=10)
+        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries", headers=auth_headers(), timeout=10)
         if response.status_code >= 400:
             st.error(f"Impossible de charger la bibliothèque: {api_json_error(response)}")
             return []
@@ -88,8 +114,9 @@ def list_entries(user_id: str) -> list[dict[str, Any]]:
 
 
 @st.cache_data(show_spinner=False, max_entries=128)
-def fetch_audio_bytes(entry_id: str) -> bytes:
-    response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}/audio", timeout=30)
+def fetch_audio_bytes(entry_id: str, access_token: str) -> bytes:
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
+    response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}/audio", headers=headers, timeout=30)
     if response.status_code >= 400:
         raise RuntimeError(api_json_error(response))
     return response.content
@@ -105,7 +132,7 @@ def download_filename(entry: dict[str, Any]) -> str:
 
 def delete_entry(entry_id: str) -> None:
     try:
-        response = requests.delete(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}", timeout=10)
+        response = requests.delete(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}", headers=auth_headers(), timeout=10)
         if response.status_code >= 400:
             st.error(f"Suppression impossible: {api_json_error(response)}")
             return
@@ -115,57 +142,69 @@ def delete_entry(entry_id: str) -> None:
         st.error(f"Erreur réseau: {exc}")
 
 
+with st.sidebar:
+    st.header("Session")
+    st.session_state.login_email = st.text_input("Email", value=st.session_state.login_email)
+    st.session_state.login_password = st.text_input("Mot de passe", value=st.session_state.login_password, type="password")
+    if st.button("Se connecter"):
+        login()
+    if st.session_state.access_token:
+        st.success("Connecté")
+        if st.button("Se déconnecter"):
+            st.session_state.access_token = ""
+            fetch_audio_bytes.clear()
+            st.rerun()
+    st.caption(f"API_BASE_URL: {API_BASE_URL}")
+
 check_api_health()
+
+if not st.session_state.access_token:
+    st.info("Veuillez vous connecter")
+    st.stop()
 
 tab_question, tab_library = st.tabs(["Question du jour", "Bibliothèque"])
 
 with tab_question:
     st.subheader("Répondre à la question")
-    if not st.session_state.user_id.strip():
-        st.info("Renseignez un user_id dans la barre latérale pour continuer.")
-    else:
-        question = fetch_today_question()
-        if question:
-            st.markdown(f"**{question['text']}**")
-            st.caption(f"Catégorie: {question['category']}")
+    question = fetch_today_question()
+    if question:
+        st.markdown(f"**{question['text']}**")
+        st.caption(f"Catégorie: {question['category']}")
 
-            uploaded = st.file_uploader(
-                "Ajoutez un audio (max 25MB)",
-                type=ALLOWED_TYPES,
-                accept_multiple_files=False,
-            )
-            if st.button("Envoyer", disabled=uploaded is None):
-                if uploaded is None:
-                    st.warning("Sélectionnez un fichier audio.")
-                else:
-                    upload_entry(st.session_state.user_id.strip(), question["id"], uploaded)
+        uploaded = st.file_uploader(
+            "Ajoutez un audio (max 25MB)",
+            type=ALLOWED_TYPES,
+            accept_multiple_files=False,
+        )
+        if st.button("Envoyer", disabled=uploaded is None):
+            if uploaded is None:
+                st.warning("Sélectionnez un fichier audio.")
+            else:
+                upload_entry(question["id"], uploaded)
 
 with tab_library:
     st.subheader("Mes entrées")
-    if not st.session_state.user_id.strip():
-        st.info("Renseignez un user_id pour afficher la bibliothèque.")
-    else:
-        entries = list_entries(st.session_state.user_id.strip())
-        if not entries:
-            st.write("Aucune entrée pour le moment.")
-        for entry in entries:
-            with st.container(border=True):
-                st.write(f"Entry: `{entry['id']}`")
-                st.write(f"Question ID: {entry['question_id']} · Taille: {entry['audio_size']} octets")
-                if st.button("▶ Lire", key=f"play-{entry['id']}"):
-                    try:
-                        audio_bytes = fetch_audio_bytes(entry["id"])
-                    except (requests.RequestException, RuntimeError) as exc:
-                        st.error(f"Lecture impossible: {exc}")
-                    else:
-                        st.audio(audio_bytes, format=entry["audio_mime"])
-                        st.download_button(
-                            "Télécharger",
-                            data=audio_bytes,
-                            file_name=download_filename(entry),
-                            mime=entry["audio_mime"],
-                            key=f"download-{entry['id']}",
-                        )
-                if st.button("Supprimer", key=f"delete-{entry['id']}"):
-                    delete_entry(entry["id"])
-                    st.rerun()
+    entries = list_entries()
+    if not entries:
+        st.write("Aucune entrée pour le moment.")
+    for entry in entries:
+        with st.container(border=True):
+            st.write(f"Entry: `{entry['id']}`")
+            st.write(f"Question ID: {entry['question_id']} · Taille: {entry['audio_size']} octets")
+            if st.button("▶ Lire", key=f"play-{entry['id']}"):
+                try:
+                    audio_bytes = fetch_audio_bytes(entry["id"], st.session_state.access_token)
+                except (requests.RequestException, RuntimeError) as exc:
+                    st.error(f"Lecture impossible: {exc}")
+                else:
+                    st.audio(audio_bytes, format=entry["audio_mime"])
+                    st.download_button(
+                        "Télécharger",
+                        data=audio_bytes,
+                        file_name=download_filename(entry),
+                        mime=entry["audio_mime"],
+                        key=f"download-{entry['id']}",
+                    )
+            if st.button("Supprimer", key=f"delete-{entry['id']}"):
+                delete_entry(entry["id"])
+                st.rerun()

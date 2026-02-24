@@ -192,8 +192,10 @@ def list_entries(current_user: User = Depends(get_current_user), db: Session = D
 @api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
 def get_entry(entry_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Entry:
     entry = db.get(Entry, entry_id)
-    if entry is None or entry.user_id != current_user.id:
+    if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
     return entry
 
 
@@ -204,8 +206,10 @@ def get_entry_audio(
     db: Session = Depends(get_db),
 ) -> FileResponse:
     entry = db.get(Entry, entry_id)
-    if entry is None or entry.user_id != current_user.id:
+    if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
     path = settings.data_dir / entry.audio_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")
@@ -219,8 +223,10 @@ def delete_entry(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     entry = db.get(Entry, entry_id)
-    if entry is None or entry.user_id != current_user.id:
+    if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
 
     path = settings.data_dir / entry.audio_path
     db.delete(entry)
