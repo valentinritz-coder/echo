@@ -54,7 +54,7 @@ def _has_mp4_signature(header: bytes) -> bool:
 
 
 def _has_webm_signature(header: bytes) -> bool:
-    return header.startswith(b"\x1A\x45\xDF\xA3")
+    return header.startswith(b"\x1a\x45\xdf\xa3")
 
 
 def _has_aac_adts_signature(header: bytes) -> bool:
@@ -79,7 +79,9 @@ def has_valid_signature(header: bytes, mime_type: str) -> bool:
     if mime_type == "audio/aac":
         return _has_aac_adts_signature(header)
     if mime_type == "audio/aiff":
-        return len(header) >= 12 and header.startswith(b"FORM") and header[8:12] == b"AIFF"
+        return (
+            len(header) >= 12 and header.startswith(b"FORM") and header[8:12] == b"AIFF"
+        )
     return False
 
 
@@ -107,14 +109,20 @@ async def stream_upload_to_disk(
     if suffix not in allowed:
         raise HTTPException(
             status_code=422,
-            detail={"code": "invalid_extension", "message": "Filename extension does not match MIME type"},
+            detail={
+                "code": "invalid_extension",
+                "message": "Filename extension does not match MIME type",
+            },
         )
 
     header = await upload.read(512)
     if not header or not has_valid_signature(header, expected_mime):
         raise HTTPException(
             status_code=422,
-            detail={"code": "invalid_signature", "message": "Audio signature does not match MIME type"},
+            detail={
+                "code": "invalid_signature",
+                "message": "Audio signature does not match MIME type",
+            },
         )
 
     dst_path.parent.mkdir(parents=True, exist_ok=True)
@@ -128,7 +136,10 @@ async def stream_upload_to_disk(
             if size > max_bytes:
                 raise HTTPException(
                     status_code=413,
-                    detail={"code": "payload_too_large", "message": "Audio file exceeds upload size limit"},
+                    detail={
+                        "code": "payload_too_large",
+                        "message": "Audio file exceeds upload size limit",
+                    },
                 )
             digest.update(header)
             handle.write(header)
@@ -142,7 +153,10 @@ async def stream_upload_to_disk(
                 if size > max_bytes:
                     raise HTTPException(
                         status_code=413,
-                        detail={"code": "payload_too_large", "message": "Audio file exceeds upload size limit"},
+                        detail={
+                            "code": "payload_too_large",
+                            "message": "Audio file exceeds upload size limit",
+                        },
                     )
                 digest.update(chunk)
                 handle.write(chunk)
@@ -152,7 +166,9 @@ async def stream_upload_to_disk(
         tmp_path.unlink(missing_ok=True)
         raise
 
-    duration_ms = _try_get_wav_duration_ms(dst_path) if expected_mime in WAV_MIME_TYPES else None
+    duration_ms = (
+        _try_get_wav_duration_ms(dst_path) if expected_mime in WAV_MIME_TYPES else None
+    )
     return {
         "sha256": digest.hexdigest(),
         "size": size,

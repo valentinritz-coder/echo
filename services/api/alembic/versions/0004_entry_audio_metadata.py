@@ -20,9 +20,16 @@ depends_on: Union[str, Sequence[str], None] = None
 def upgrade() -> None:
     op.add_column(
         "entries",
-        sa.Column("audio_sha256", sa.String(length=64), nullable=False, server_default="0" * 64),
+        sa.Column(
+            "audio_sha256",
+            sa.String(length=64),
+            nullable=False,
+            server_default="0" * 64,
+        ),
     )
-    op.add_column("entries", sa.Column("audio_duration_ms", sa.Integer(), nullable=True))
+    op.add_column(
+        "entries", sa.Column("audio_duration_ms", sa.Integer(), nullable=True)
+    )
 
 
 def downgrade() -> None:

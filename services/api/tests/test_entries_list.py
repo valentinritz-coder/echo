@@ -38,28 +38,46 @@ def _build_client(tmp_path, monkeypatch):
 
     api_dir = Path(__file__).resolve().parents[1]
     alembic_cfg = Config(str(api_dir / "alembic.ini"))
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}")
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
+    )
     command.upgrade(alembic_cfg, "head")
 
     from app.models import User
     from app.security import hash_password
 
     with app.db.SessionLocal() as db:
-        db.add(User(email="user_a@example.com", password_hash=hash_password("password-a"), is_active=True))
-        db.add(User(email="user_b@example.com", password_hash=hash_password("password-b"), is_active=True))
+        db.add(
+            User(
+                email="user_a@example.com",
+                password_hash=hash_password("password-a"),
+                is_active=True,
+            )
+        )
+        db.add(
+            User(
+                email="user_b@example.com",
+                password_hash=hash_password("password-b"),
+                is_active=True,
+            )
+        )
         db.commit()
 
     return TestClient(app.main.app)
 
 
 def _auth_headers(client: TestClient, email: str, password: str) -> dict[str, str]:
-    response = client.post(f"{API_PREFIX}/auth/login", json={"email": email, "password": password})
+    response = client.post(
+        f"{API_PREFIX}/auth/login", json={"email": email, "password": password}
+    )
     assert response.status_code == 200
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 def _create_entry(client: TestClient, headers: dict[str, str]) -> dict:
-    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()["id"]
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
@@ -117,10 +135,14 @@ def test_sort_created_at_asc_desc(tmp_path, monkeypatch):
 
     with app.db.SessionLocal() as db:
         db.execute(
-            update(Entry).where(Entry.id == first["id"]).values(created_at=datetime(2024, 1, 1, tzinfo=timezone.utc))
+            update(Entry)
+            .where(Entry.id == first["id"])
+            .values(created_at=datetime(2024, 1, 1, tzinfo=timezone.utc))
         )
         db.execute(
-            update(Entry).where(Entry.id == second["id"]).values(created_at=datetime(2024, 1, 2, tzinfo=timezone.utc))
+            update(Entry)
+            .where(Entry.id == second["id"])
+            .values(created_at=datetime(2024, 1, 2, tzinfo=timezone.utc))
         )
         db.commit()
 
@@ -150,11 +172,19 @@ def test_stable_pagination_with_tiebreaker(tmp_path, monkeypatch):
         )
         db.commit()
 
-    page_1 = client.get(f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=0", headers=headers).json()
-    page_2 = client.get(f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=2", headers=headers).json()
-    page_3 = client.get(f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=4", headers=headers).json()
+    page_1 = client.get(
+        f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=0", headers=headers
+    ).json()
+    page_2 = client.get(
+        f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=2", headers=headers
+    ).json()
+    page_3 = client.get(
+        f"{API_PREFIX}/entries?sort=created_at_desc&limit=2&offset=4", headers=headers
+    ).json()
 
-    seen_ids = [item["id"] for item in page_1["items"] + page_2["items"] + page_3["items"]]
+    seen_ids = [
+        item["id"] for item in page_1["items"] + page_2["items"] + page_3["items"]
+    ]
     assert seen_ids == sorted(created_ids, reverse=True)
     assert len(seen_ids) == len(set(seen_ids))
     assert page_1["next_offset"] == 2

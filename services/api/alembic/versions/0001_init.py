@@ -1,7 +1,7 @@
 """initial schema
 
 Revision ID: 0001_init
-Revises: 
+Revises:
 Create Date: 2026-02-17
 """
 
@@ -36,7 +36,12 @@ def upgrade() -> None:
         sa.Column("audio_path", sa.String(), nullable=False),
         sa.Column("audio_mime", sa.String(), nullable=False),
         sa.Column("audio_size", sa.Integer(), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.func.now(),
+            nullable=False,
+        ),
         sa.ForeignKeyConstraint(["question_id"], ["questions.id"]),
         sa.PrimaryKeyConstraint("id"),
     )
