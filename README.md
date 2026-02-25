@@ -268,3 +268,43 @@ Exemple dans `.env.example`:
 ├── docker-compose.yml
 └── Makefile
 ```
+
+## Tests E2E (blackbox HTTP, Docker sandbox)
+
+Ces tests E2E pilotent automatiquement le stack Docker Compose sandbox (`docker-compose.yml` + `docker-compose.sandbox.yml`), appliquent les migrations, attendent le healthcheck, puis valident un flux réel (auth, upload, ACL, listing/pagination, audio, cleanup).
+
+Installer les dépendances dev:
+
+```bash
+python -m pip install -e "services/api[dev]"
+```
+
+Lancer les E2E:
+
+```bash
+python -m pytest -q services/api/tests_e2e
+```
+
+Option rapide (sans rebuild d'images):
+
+```bash
+E2E_NO_BUILD=1 python -m pytest -q services/api/tests_e2e
+```
+
+PowerShell:
+
+```powershell
+$env:E2E_NO_BUILD="1"
+python -m pytest -q services/api/tests_e2e
+```
+
+CMD:
+
+```cmd
+set E2E_NO_BUILD=1
+python -m pytest -q services/api/tests_e2e
+```
+
+Variables utiles:
+- `E2E_BASE_URL` (défaut: `http://localhost:8000`)
+- `E2E_NO_BUILD` (`1/true/yes` pour sauter `docker compose build`)
