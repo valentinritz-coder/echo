@@ -37,6 +37,8 @@ class Entry(Base):
     audio_path: Mapped[str] = mapped_column(String, nullable=False)
     audio_mime: Mapped[str] = mapped_column(String, nullable=False)
     audio_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    audio_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    audio_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

@@ -11,6 +11,9 @@ from fastapi.testclient import TestClient
 API_PREFIX = "/api/v1"
 
 
+VALID_MP3_BYTES = b"ID3\x04\x00\x00\x00\x00\x00\x00payload"
+
+
 def _build_client(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("JWT_SECRET_KEY", "test-access-secret")
@@ -60,7 +63,7 @@ def _create_entry(client: TestClient, headers: dict[str, str]) -> dict:
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
-        files={"audio_file": ("voice.mp3", BytesIO(b"audio"), "audio/mpeg")},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
         headers=headers,
     )
     assert response.status_code == 200
