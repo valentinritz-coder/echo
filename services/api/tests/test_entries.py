@@ -76,7 +76,7 @@ def test_create_list_delete_entry(tmp_path, monkeypatch):
 
     listed = client.get(f"{API_PREFIX}/entries", headers=headers)
     assert listed.status_code == 200
-    assert len(listed.json()) == 1
+    assert len(listed.json()["items"]) == 1
 
     audio = client.get(f"{API_PREFIX}/entries/{created_body['id']}/audio", headers=headers)
     assert audio.status_code == 200
@@ -86,7 +86,7 @@ def test_create_list_delete_entry(tmp_path, monkeypatch):
 
     listed_again = client.get(f"{API_PREFIX}/entries", headers=headers)
     assert listed_again.status_code == 200
-    assert listed_again.json() == []
+    assert listed_again.json()["items"] == []
 
 
 def test_404_entry(tmp_path, monkeypatch):

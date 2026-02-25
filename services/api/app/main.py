@@ -1,9 +1,10 @@
 from datetime import date
 import logging
 from pathlib import Path
+from typing import Literal
 import uuid
 
-from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.db import engine, get_db
 from app.models import Entry, Question, User
 from app.routes.auth import router as auth_router
-from app.schemas import EntryOut, QuestionOut
+from app.schemas import EntriesListResponse, EntryOut, QuestionOut
 from app.security import get_current_user, hash_password
 from app.settings import settings
 
@@ -179,14 +180,34 @@ async def create_entry(
     return entry
 
 
-@api_v1_router.get("/entries", response_model=list[EntryOut])
-def list_entries(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Entry]:
+@api_v1_router.get("/entries", response_model=EntriesListResponse)
+def list_entries(
+    limit: int = Query(default=50, ge=1, description="Page size. Values above 200 are clamped to 200."),
+    offset: int = Query(default=0, ge=0),
+    sort: Literal["created_at_desc", "created_at_asc", "id_asc", "id_desc"] = "created_at_desc",
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> EntriesListResponse:
+    order_by_map = {
+        "created_at_desc": (Entry.created_at.desc(), Entry.id.desc()),
+        "created_at_asc": (Entry.created_at.asc(), Entry.id.asc()),
+        "id_asc": (Entry.id.asc(),),
+        "id_desc": (Entry.id.desc(),),
+    }
+    clamped_limit = min(limit, 200)
     entries = (
-        db.execute(select(Entry).where(Entry.user_id == current_user.id).order_by(Entry.created_at.desc()))
+        db.execute(
+            select(Entry)
+            .where(Entry.user_id == current_user.id)
+            .order_by(*order_by_map[sort])
+            .offset(offset)
+            .limit(clamped_limit)
+        )
         .scalars()
         .all()
     )
-    return entries
+    next_offset = offset + len(entries) if len(entries) == clamped_limit else None
+    return EntriesListResponse(items=entries, next_offset=next_offset, limit=clamped_limit, offset=offset)
 
 
 @api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
