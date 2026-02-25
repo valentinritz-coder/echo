@@ -4,7 +4,12 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models import User
-from app.security import create_access_token, create_refresh_token, verify_password, verify_refresh_token
+from app.security import (
+    create_access_token,
+    create_refresh_token,
+    verify_password,
+    verify_refresh_token,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -32,10 +37,17 @@ class AccessTokenResponse(BaseModel):
 @router.post("/login", response_model=TokenPairResponse)
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPairResponse:
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or not user.is_active or not verify_password(payload.password, user.password_hash):
+    if (
+        user is None
+        or not user.is_active
+        or not verify_password(payload.password, user.password_hash)
+    ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"code": "invalid_credentials", "message": "Incorrect email or password"},
+            detail={
+                "code": "invalid_credentials",
+                "message": "Incorrect email or password",
+            },
         )
 
     return TokenPairResponse(
@@ -45,7 +57,9 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenPairResp
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
-def refresh(payload: RefreshRequest, db: Session = Depends(get_db)) -> AccessTokenResponse:
+def refresh(
+    payload: RefreshRequest, db: Session = Depends(get_db)
+) -> AccessTokenResponse:
     user_id = verify_refresh_token(payload.refresh_token)
     user = db.query(User).filter(User.id == user_id).first()
     if user is None or not user.is_active:

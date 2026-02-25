@@ -30,7 +30,9 @@ def _build_client(tmp_path, monkeypatch):
     app.main.engine = app.db.engine
 
     alembic_cfg = Config("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}")
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
+    )
     command.upgrade(alembic_cfg, "head")
 
     from app.models import User
@@ -38,7 +40,13 @@ def _build_client(tmp_path, monkeypatch):
 
     with app.db.SessionLocal() as db:
         if db.query(User).count() == 0:
-            db.add(User(email="admin@example.com", password_hash=hash_password("admin-password"), is_active=True))
+            db.add(
+                User(
+                    email="admin@example.com",
+                    password_hash=hash_password("admin-password"),
+                    is_active=True,
+                )
+            )
             db.commit()
 
     return TestClient(app.main.app)

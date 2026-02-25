@@ -26,11 +26,16 @@ def _ensure_jwt_configured() -> None:
     if not settings.jwt_secret_key or not settings.jwt_refresh_secret_key:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"code": "jwt_not_configured", "message": "JWT secrets are not configured"},
+            detail={
+                "code": "jwt_not_configured",
+                "message": "JWT secrets are not configured",
+            },
         )
 
 
-def _create_token(subject: str, token_type: str, secret: str, expires_delta_minutes: int) -> str:
+def _create_token(
+    subject: str, token_type: str, secret: str, expires_delta_minutes: int
+) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": subject,
@@ -43,7 +48,12 @@ def _create_token(subject: str, token_type: str, secret: str, expires_delta_minu
 
 def create_access_token(subject: str) -> str:
     _ensure_jwt_configured()
-    return _create_token(subject, "access", settings.jwt_secret_key, settings.jwt_access_token_expire_minutes)
+    return _create_token(
+        subject,
+        "access",
+        settings.jwt_secret_key,
+        settings.jwt_access_token_expire_minutes,
+    )
 
 
 def create_refresh_token(subject: str) -> str:
@@ -58,13 +68,20 @@ def create_refresh_token(subject: str) -> str:
 
 def _decode_token(token: str, expected_type: str) -> dict:
     _ensure_jwt_configured()
-    secret = settings.jwt_secret_key if expected_type == "access" else settings.jwt_refresh_secret_key
+    secret = (
+        settings.jwt_secret_key
+        if expected_type == "access"
+        else settings.jwt_refresh_secret_key
+    )
     try:
         payload = jwt.decode(token, secret, algorithms=[settings.jwt_algorithm])
     except JWTError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"code": "invalid_token", "message": "Could not validate credentials"},
+            detail={
+                "code": "invalid_token",
+                "message": "Could not validate credentials",
+            },
             headers={"WWW-Authenticate": "Bearer"},
         ) from exc
 
@@ -82,7 +99,9 @@ def verify_refresh_token(token: str) -> str:
     return str(payload["sub"])
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def get_current_user(
+    token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)
+) -> User:
     payload = _decode_token(token, "access")
     user = db.query(User).filter(User.id == payload["sub"]).first()
     if user is None or not user.is_active:

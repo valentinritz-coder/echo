@@ -9,7 +9,7 @@ API_PREFIX = "/api/v1"
 
 VALID_MP3_BYTES = b"ID3\x04\x00\x00\x00\x00\x00\x00payload"
 VALID_M4A_BYTES = b"\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00"
-VALID_WEBM_BYTES = b"\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01"
+VALID_WEBM_BYTES = b"\x1a\x45\xdf\xa3\x9f\x42\x86\x81\x01"
 VALID_3GPP_BYTES = b"\x00\x00\x00\x14ftyp3gp5\x00\x00\x00\x00"
 
 
@@ -38,7 +38,9 @@ def _build_client(tmp_path, monkeypatch):
     app.main.engine = app.db.engine
 
     alembic_cfg = Config("alembic.ini")
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}")
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
+    )
     command.upgrade(alembic_cfg, "head")
 
     from app.models import User
@@ -46,7 +48,13 @@ def _build_client(tmp_path, monkeypatch):
 
     with app.db.SessionLocal() as db:
         if db.query(User).count() == 0:
-            db.add(User(email="admin@example.com", password_hash=hash_password("admin-password"), is_active=True))
+            db.add(
+                User(
+                    email="admin@example.com",
+                    password_hash=hash_password("admin-password"),
+                    is_active=True,
+                )
+            )
             db.commit()
 
     return TestClient(app.main.app)
@@ -70,7 +78,9 @@ def _create_entry(client: TestClient) -> tuple[dict, dict[str, str]]:
     payload = {"question_id": str(question.json()["id"])}
     files = {"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")}
 
-    created = client.post(f"{API_PREFIX}/entries", data=payload, files=files, headers=headers)
+    created = client.post(
+        f"{API_PREFIX}/entries", data=payload, files=files, headers=headers
+    )
     assert created.status_code == 200
     return created.json(), headers
 
@@ -84,10 +94,14 @@ def test_create_list_delete_entry(tmp_path, monkeypatch):
     assert listed.status_code == 200
     assert len(listed.json()["items"]) == 1
 
-    audio = client.get(f"{API_PREFIX}/entries/{created_body['id']}/audio", headers=headers)
+    audio = client.get(
+        f"{API_PREFIX}/entries/{created_body['id']}/audio", headers=headers
+    )
     assert audio.status_code == 200
 
-    deleted = client.delete(f"{API_PREFIX}/entries/{created_body['id']}", headers=headers)
+    deleted = client.delete(
+        f"{API_PREFIX}/entries/{created_body['id']}", headers=headers
+    )
     assert deleted.status_code == 200
 
     listed_again = client.get(f"{API_PREFIX}/entries", headers=headers)
@@ -110,7 +124,9 @@ def test_mime_validation(tmp_path, monkeypatch):
     payload = {"question_id": str(question.json()["id"])}
     files = {"audio_file": ("voice.txt", BytesIO(b"not-audio"), "text/plain")}
 
-    response = client.post(f"{API_PREFIX}/entries", data=payload, files=files, headers=headers)
+    response = client.post(
+        f"{API_PREFIX}/entries", data=payload, files=files, headers=headers
+    )
     assert response.status_code == 422
     assert response.json() == {
         "error": {
@@ -123,7 +139,9 @@ def test_mime_validation(tmp_path, monkeypatch):
 def test_upload_accepts_audio_x_m4a(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
     headers = _auth_headers(client)
-    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()["id"]
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
 
     response = client.post(
         f"{API_PREFIX}/entries",
@@ -139,7 +157,9 @@ def test_upload_accepts_audio_x_m4a(tmp_path, monkeypatch):
 def test_upload_accepts_audio_webm(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
     headers = _auth_headers(client)
-    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()["id"]
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
 
     response = client.post(
         f"{API_PREFIX}/entries",
@@ -155,7 +175,9 @@ def test_upload_accepts_audio_webm(tmp_path, monkeypatch):
 def test_upload_accepts_audio_3gpp(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
     headers = _auth_headers(client)
-    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()["id"]
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
 
     response = client.post(
         f"{API_PREFIX}/entries",

@@ -35,15 +35,29 @@ def _build_client(tmp_path, monkeypatch):
 
     api_dir = Path(__file__).resolve().parents[1]
     alembic_cfg = Config(str(api_dir / "alembic.ini"))
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}")
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
+    )
     command.upgrade(alembic_cfg, "head")
 
     from app.models import User
     from app.security import hash_password
 
     with app.db.SessionLocal() as db:
-        db.add(User(email="user_a@example.com", password_hash=hash_password("password-a"), is_active=True))
-        db.add(User(email="user_b@example.com", password_hash=hash_password("password-b"), is_active=True))
+        db.add(
+            User(
+                email="user_a@example.com",
+                password_hash=hash_password("password-a"),
+                is_active=True,
+            )
+        )
+        db.add(
+            User(
+                email="user_b@example.com",
+                password_hash=hash_password("password-b"),
+                is_active=True,
+            )
+        )
         db.commit()
 
     return TestClient(app.main.app)
@@ -64,7 +78,9 @@ def test_acl_forbidden_for_cross_user_and_404_for_missing_id(tmp_path, monkeypat
     headers_a = _auth_headers(client, "user_a@example.com", "password-a")
     headers_b = _auth_headers(client, "user_b@example.com", "password-b")
 
-    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers_a).json()["id"]
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers_a).json()[
+        "id"
+    ]
     create = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
@@ -81,13 +97,37 @@ def test_acl_forbidden_for_cross_user_and_404_for_missing_id(tmp_path, monkeypat
     ]:
         response = getattr(client, method)(path, headers=headers_b)
         assert response.status_code == 403
-        assert response.json() == {"error": {"code": "forbidden", "message": "Not allowed"}}
+        assert response.json() == {
+            "error": {"code": "forbidden", "message": "Not allowed"}
+        }
 
-    assert client.get(f"{API_PREFIX}/entries/{entry_id}", headers=headers_a).status_code == 200
-    assert client.get(f"{API_PREFIX}/entries/{entry_id}/audio", headers=headers_a).status_code == 200
-    assert client.delete(f"{API_PREFIX}/entries/{entry_id}", headers=headers_a).status_code == 200
+    assert (
+        client.get(f"{API_PREFIX}/entries/{entry_id}", headers=headers_a).status_code
+        == 200
+    )
+    assert (
+        client.get(
+            f"{API_PREFIX}/entries/{entry_id}/audio", headers=headers_a
+        ).status_code
+        == 200
+    )
+    assert (
+        client.delete(f"{API_PREFIX}/entries/{entry_id}", headers=headers_a).status_code
+        == 200
+    )
 
     missing = "00000000-0000-0000-0000-000000000000"
-    assert client.get(f"{API_PREFIX}/entries/{missing}", headers=headers_b).status_code == 404
-    assert client.get(f"{API_PREFIX}/entries/{missing}/audio", headers=headers_b).status_code == 404
-    assert client.delete(f"{API_PREFIX}/entries/{missing}", headers=headers_b).status_code == 404
+    assert (
+        client.get(f"{API_PREFIX}/entries/{missing}", headers=headers_b).status_code
+        == 404
+    )
+    assert (
+        client.get(
+            f"{API_PREFIX}/entries/{missing}/audio", headers=headers_b
+        ).status_code
+        == 404
+    )
+    assert (
+        client.delete(f"{API_PREFIX}/entries/{missing}", headers=headers_b).status_code
+        == 404
+    )

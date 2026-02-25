@@ -4,7 +4,16 @@ from pathlib import Path
 from typing import Literal
 import uuid
 
-from fastapi import APIRouter, Depends, FastAPI, File, Form, HTTPException, Query, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+)
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
@@ -64,7 +73,13 @@ def http_exception_handler(_, exc: HTTPException) -> JSONResponse:
 def validation_exception_handler(_, exc: RequestValidationError) -> JSONResponse:
     return JSONResponse(
         status_code=422,
-        content={"error": {"code": "422", "message": "Validation error", "details": exc.errors()}},
+        content={
+            "error": {
+                "code": "422",
+                "message": "Validation error",
+                "details": exc.errors(),
+            }
+        },
     )
 
 
@@ -94,6 +109,7 @@ def _ensure_questions_seeded(db: Session) -> None:
         db.add(Question(id=idx, text=text, category=category, is_active=True))
     db.commit()
 
+
 def _seed_admin_user(db: Session) -> None:
     if settings.app_env != "development":
         return
@@ -113,10 +129,19 @@ def _seed_admin_user(db: Session) -> None:
     )
     db.commit()
 
+
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
-def get_question_today(_: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Question:
+def get_question_today(
+    _: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> Question:
     _ensure_questions_seeded(db)
-    questions = db.execute(select(Question).where(Question.is_active.is_(True)).order_by(Question.id)).scalars().all()
+    questions = (
+        db.execute(
+            select(Question).where(Question.is_active.is_(True)).order_by(Question.id)
+        )
+        .scalars()
+        .all()
+    )
     if not questions:
         raise HTTPException(status_code=404, detail="No active question")
     selected = questions[date.today().toordinal() % len(questions)]
@@ -139,7 +164,10 @@ async def create_entry(
     if content_type not in ALLOWED_MIME_TYPES:
         raise HTTPException(
             status_code=422,
-            detail={"code": "unsupported_mime", "message": "Unsupported audio MIME type"},
+            detail={
+                "code": "unsupported_mime",
+                "message": "Unsupported audio MIME type",
+            },
         )
 
     entry_id = str(uuid.uuid4())
@@ -172,9 +200,13 @@ async def create_entry(
 
 @api_v1_router.get("/entries", response_model=EntriesListResponse)
 def list_entries(
-    limit: int = Query(default=50, ge=1, description="Page size. Values above 200 are clamped to 200."),
+    limit: int = Query(
+        default=50, ge=1, description="Page size. Values above 200 are clamped to 200."
+    ),
     offset: int = Query(default=0, ge=0),
-    sort: Literal["created_at_desc", "created_at_asc", "id_asc", "id_desc"] = "created_at_desc",
+    sort: Literal[
+        "created_at_desc", "created_at_asc", "id_asc", "id_desc"
+    ] = "created_at_desc",
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> EntriesListResponse:
@@ -197,16 +229,24 @@ def list_entries(
         .all()
     )
     next_offset = offset + len(entries) if len(entries) == clamped_limit else None
-    return EntriesListResponse(items=entries, next_offset=next_offset, limit=clamped_limit, offset=offset)
+    return EntriesListResponse(
+        items=entries, next_offset=next_offset, limit=clamped_limit, offset=offset
+    )
 
 
 @api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
-def get_entry(entry_id: str, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Entry:
+def get_entry(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Entry:
     entry = db.get(Entry, entry_id)
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     if entry.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
+        raise HTTPException(
+            status_code=403, detail={"code": "forbidden", "message": "Not allowed"}
+        )
     return entry
 
 
@@ -220,7 +260,9 @@ def get_entry_audio(
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     if entry.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
+        raise HTTPException(
+            status_code=403, detail={"code": "forbidden", "message": "Not allowed"}
+        )
     path = settings.data_dir / entry.audio_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")
@@ -237,7 +279,9 @@ def delete_entry(
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     if entry.user_id != current_user.id:
-        raise HTTPException(status_code=403, detail={"code": "forbidden", "message": "Not allowed"})
+        raise HTTPException(
+            status_code=403, detail={"code": "forbidden", "message": "Not allowed"}
+        )
 
     path = settings.data_dir / entry.audio_path
     db.delete(entry)

@@ -63,7 +63,9 @@ def _build_client(tmp_path, monkeypatch, *, max_upload_size_mb: int = 25):
 
     api_dir = Path(__file__).resolve().parents[1]
     alembic_cfg = Config(str(api_dir / "alembic.ini"))
-    alembic_cfg.set_main_option("sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}")
+    alembic_cfg.set_main_option(
+        "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
+    )
     command.upgrade(alembic_cfg, "head")
 
     from app.models import User
@@ -71,7 +73,13 @@ def _build_client(tmp_path, monkeypatch, *, max_upload_size_mb: int = 25):
 
     with app.db.SessionLocal() as db:
         if db.query(User).count() == 0:
-            db.add(User(email="admin@example.com", password_hash=hash_password("admin-password"), is_active=True))
+            db.add(
+                User(
+                    email="admin@example.com",
+                    password_hash=hash_password("admin-password"),
+                    is_active=True,
+                )
+            )
             db.commit()
 
     return TestClient(app.main.app)
@@ -100,7 +108,13 @@ def test_upload_rejects_payload_too_large_without_creating_entry(tmp_path, monke
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(_question_id(client, headers))},
-        files={"audio_file": ("voice.mp3", GeneratedMP3Stream(total_size=1024 * 1024 + 1), "audio/mpeg")},
+        files={
+            "audio_file": (
+                "voice.mp3",
+                GeneratedMP3Stream(total_size=1024 * 1024 + 1),
+                "audio/mpeg",
+            )
+        },
         headers=headers,
     )
 
