@@ -16,24 +16,11 @@ from app.routes.auth import router as auth_router
 from app.schemas import EntriesListResponse, EntryOut, QuestionOut
 from app.security import get_current_user, hash_password
 from app.settings import settings
+from app.storage import ALLOWED_MIME_TYPES, stream_upload_to_disk
 
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 logger = logging.getLogger(__name__)
 api_v1_router = APIRouter(prefix="/api/v1")
-
-ALLOWED_MIME_TYPES = {
-    "audio/mpeg": ".mp3",
-    "audio/mp4": ".m4a",
-    "audio/x-m4a": ".m4a",
-    "audio/wav": ".wav",
-    "audio/x-wav": ".wav",
-    "audio/ogg": ".ogg",
-    "audio/aac": ".aac",
-    "audio/3gpp": ".3gp",
-    "audio/3gpp2": ".3g2",
-    "audio/webm": ".webm",
-    "audio/aiff": ".aiff",
-}
 
 SEED_QUESTIONS: list[tuple[str, str]] = [
     ("Quel moment t'a fait sourire aujourd'hui ?", "gratitude"),
@@ -155,16 +142,17 @@ async def create_entry(
             detail={"code": "unsupported_mime", "message": "Unsupported audio MIME type"},
         )
 
-    file_bytes = await audio_file.read()
-    if len(file_bytes) > settings.max_upload_bytes:
-        raise HTTPException(status_code=413, detail="Audio file exceeds 25 MB")
-
     entry_id = str(uuid.uuid4())
     ext = ALLOWED_MIME_TYPES[content_type]
     relative_path = Path("audio") / f"{entry_id}{ext}"
     absolute_path = settings.data_dir / relative_path
-    absolute_path.parent.mkdir(parents=True, exist_ok=True)
-    absolute_path.write_bytes(file_bytes)
+    upload_info = await stream_upload_to_disk(
+        upload=audio_file,
+        dst_path=absolute_path,
+        max_bytes=settings.max_upload_bytes,
+        expected_mime=content_type,
+        expected_ext=ext,
+    )
 
     entry = Entry(
         id=entry_id,
@@ -172,7 +160,9 @@ async def create_entry(
         question_id=question_id,
         audio_path=str(relative_path),
         audio_mime=content_type,
-        audio_size=len(file_bytes),
+        audio_size=int(upload_info["size"]),
+        audio_sha256=str(upload_info["sha256"]),
+        audio_duration_ms=upload_info["duration_ms"],
     )
     db.add(entry)
     db.commit()

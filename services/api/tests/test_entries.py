@@ -7,6 +7,12 @@ from fastapi.testclient import TestClient
 API_PREFIX = "/api/v1"
 
 
+VALID_MP3_BYTES = b"ID3\x04\x00\x00\x00\x00\x00\x00payload"
+VALID_M4A_BYTES = b"\x00\x00\x00\x18ftypM4A \x00\x00\x00\x00"
+VALID_WEBM_BYTES = b"\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01"
+VALID_3GPP_BYTES = b"\x00\x00\x00\x14ftyp3gp5\x00\x00\x00\x00"
+
+
 def _build_client(tmp_path, monkeypatch):
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("JWT_SECRET_KEY", "test-access-secret")
@@ -62,7 +68,7 @@ def _create_entry(client: TestClient) -> tuple[dict, dict[str, str]]:
     assert question.status_code == 200
 
     payload = {"question_id": str(question.json()["id"])}
-    files = {"audio_file": ("voice.mp3", BytesIO(b"fake-audio"), "audio/mpeg")}
+    files = {"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")}
 
     created = client.post(f"{API_PREFIX}/entries", data=payload, files=files, headers=headers)
     assert created.status_code == 200
@@ -122,7 +128,7 @@ def test_upload_accepts_audio_x_m4a(tmp_path, monkeypatch):
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
-        files={"audio_file": ("voice.m4a", BytesIO(b"m4a"), "audio/x-m4a")},
+        files={"audio_file": ("voice.m4a", BytesIO(VALID_M4A_BYTES), "audio/x-m4a")},
         headers=headers,
     )
 
@@ -138,7 +144,7 @@ def test_upload_accepts_audio_webm(tmp_path, monkeypatch):
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
-        files={"audio_file": ("voice.webm", BytesIO(b"webm"), "audio/webm")},
+        files={"audio_file": ("voice.webm", BytesIO(VALID_WEBM_BYTES), "audio/webm")},
         headers=headers,
     )
 
@@ -154,7 +160,7 @@ def test_upload_accepts_audio_3gpp(tmp_path, monkeypatch):
     response = client.post(
         f"{API_PREFIX}/entries",
         data={"question_id": str(question_id)},
-        files={"audio_file": ("voice.3gp", BytesIO(b"3gpp"), "audio/3gpp")},
+        files={"audio_file": ("voice.3gp", BytesIO(VALID_3GPP_BYTES), "audio/3gpp")},
         headers=headers,
     )
 
