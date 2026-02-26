@@ -22,8 +22,10 @@ from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
 
 from app.db import engine, get_db
+from app.middleware.request_id import RequestIdMiddleware, configure_json_logging
 from app.models import Entry, Question, User
 from app.routes.auth import router as auth_router
+from app.routes.system import router as system_router
 from app.schemas import EntriesListResponse, EntryOut, QuestionOut
 from app.security import get_current_user, hash_password
 from app.settings import settings
@@ -44,6 +46,7 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+app.add_middleware(RequestIdMiddleware)
 
 
 @app.middleware("http")
@@ -82,6 +85,7 @@ SEED_QUESTIONS: list[tuple[str, str]] = [
 
 @app.on_event("startup")
 def startup() -> None:
+    configure_json_logging()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.audio_dir.mkdir(parents=True, exist_ok=True)
     if not inspect(engine).has_table("entries"):
@@ -124,11 +128,6 @@ def generic_exception_handler(_, __: Exception) -> JSONResponse:
         status_code=500,
         content={"error": {"code": "500", "message": "Internal server error"}},
     )
-
-
-@api_v1_router.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
 
 
 @api_v1_router.get("/version")
@@ -326,4 +325,5 @@ def delete_entry(
 
 
 api_v1_router.include_router(auth_router)
+api_v1_router.include_router(system_router)
 app.include_router(api_v1_router)
