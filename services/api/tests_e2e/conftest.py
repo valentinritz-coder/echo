@@ -35,11 +35,13 @@ def _upsert_env_var(env_path: Path, key: str, value: str) -> None:
     env_path.write_text("\n".join(out) + "\n", encoding="utf-8")
 
 
-def _compose_cmd(repo: Path) -> list[str]:
+def _compose_cmd(repo: Path, env_path: Path) -> list[str]:
     # Use same compose files as the sandbox PowerShell workflow
     return [
         "docker",
         "compose",
+        "--env-file",
+        str(env_path),
         "-f",
         str(repo / "docker-compose.yml"),
         "-f",
@@ -79,6 +81,20 @@ def _wait_health(base_url: str, timeout_s: int = 60) -> None:
     raise RuntimeError(f"API never became healthy. Last error: {last_err!r}")
 
 
+def _wait_readyz(base_url: str, timeout_s: int = 60) -> None:
+    deadline = time.time() + timeout_s
+    last_err: object | None = None
+    while time.time() < deadline:
+        try:
+            r = httpx.get(f"{base_url}/api/v1/readyz", timeout=5.0)
+            if r.status_code == 200 and r.json().get("status") == "ok":
+                return
+        except Exception as e:  # noqa: BLE001
+            last_err = e
+        time.sleep(2)
+    raise RuntimeError(f"API never became ready. Last error: {last_err!r}")
+
+
 def _seed_user_b(repo: Path, email: str, password: str) -> None:
     # Run python inside api container to create/activate user_b
     py = f"""
@@ -105,7 +121,8 @@ try:
 finally:
     db.close()
 """
-    cmd = _compose_cmd(repo) + ["exec", "-T", "api", "python", "-c", py]
+    env_path = repo / "data_sandbox/.env.e2e"
+    cmd = _compose_cmd(repo, env_path) + ["exec", "-T", "api", "python", "-c", py]
     _run(repo, cmd, check=True)
 
 
@@ -122,14 +139,6 @@ def e2e_stack(e2e_base_url: str):
     """
     repo = _repo_root()
 
-    # Ensure .env has required runtime config
-    env_path = repo / ".env"
-    _upsert_env_var(env_path, "APP_ENV", "development")
-    _upsert_env_var(env_path, "JWT_SECRET_KEY", uuid.uuid4().hex)
-    _upsert_env_var(env_path, "JWT_REFRESH_SECRET_KEY", uuid.uuid4().hex)
-    _upsert_env_var(env_path, "ADMIN_EMAIL", "admin@example.com")
-    _upsert_env_var(env_path, "ADMIN_PASSWORD", "admin-password")
-
     if shutil.which("docker") is None:
         pytest.skip("docker not found in PATH; skipping E2E tests")
 
@@ -138,7 +147,8 @@ def e2e_stack(e2e_base_url: str):
         pytest.skip("docker daemon not running; start Docker Desktop to run E2E tests")
 
     # Clean start
-    _run(repo, _compose_cmd(repo) + ["down"], check=False)
+    env_path = repo / "data_sandbox/.env.e2e"
+    _run(repo, _compose_cmd(repo, env_path) + ["down"], check=False)
 
     # Reset sandbox dir (best effort; avoids state leakage across runs)
     sandbox_dir = repo / "data_sandbox"
@@ -155,24 +165,36 @@ def e2e_stack(e2e_base_url: str):
                     pass
     (sandbox_dir / "audio").mkdir(parents=True, exist_ok=True)
 
+    # Dedicated E2E env file (avoid touching repo/.env)
+    _upsert_env_var(env_path, "APP_ENV", "development")
+    _upsert_env_var(env_path, "JWT_SECRET_KEY", uuid.uuid4().hex)
+    _upsert_env_var(env_path, "JWT_REFRESH_SECRET_KEY", uuid.uuid4().hex)
+    _upsert_env_var(env_path, "ADMIN_EMAIL", "admin@example.com")
+    _upsert_env_var(env_path, "ADMIN_PASSWORD", "admin-password")
+
     # Optional build (can be skipped for speed)
     no_build = os.environ.get("E2E_NO_BUILD", "").lower() in {"1", "true", "yes"}
     if not no_build:
-        _run(repo, _compose_cmd(repo) + ["build"], check=True)
+        _run(repo, _compose_cmd(repo, env_path) + ["build"], check=True)
 
     # Migrate before up
     _run(
         repo,
-        _compose_cmd(repo)
+        _compose_cmd(repo, env_path)
         + ["run", "--rm", "--no-deps", "api", "alembic", "upgrade", "head"],
         check=True,
     )
 
     # Up
-    _run(repo, _compose_cmd(repo) + ["up", "-d", "--force-recreate"], check=True)
+    _run(
+        repo,
+        _compose_cmd(repo, env_path) + ["up", "-d", "--force-recreate"],
+        check=True,
+    )
 
     # Wait API
     _wait_health(e2e_base_url, timeout_s=60)
+    _wait_readyz(e2e_base_url, timeout_s=60)
 
     # Seed user_b (for ACL tests)
     _seed_user_b(repo, "user_b@example.com", "password-b")
@@ -180,4 +202,4 @@ def e2e_stack(e2e_base_url: str):
     yield
 
     # Tear down
-    _run(repo, _compose_cmd(repo) + ["down"], check=False)
+    _run(repo, _compose_cmd(repo, env_path) + ["down"], check=False)
