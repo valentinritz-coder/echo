@@ -1,3 +1,4 @@
+from pathlib import Path
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
@@ -29,7 +30,8 @@ def _build_client(tmp_path, monkeypatch):
     app.db.SessionLocal.configure(bind=app.db.engine)
     app.main.engine = app.db.engine
 
-    alembic_cfg = Config("alembic.ini")
+    api_dir = Path(__file__).resolve().parents[1]
+    alembic_cfg = Config(str(api_dir / "alembic.ini"))
     alembic_cfg.set_main_option(
         "sqlalchemy.url", f"sqlite:///{app.settings.settings.data_dir / 'echo.db'}"
     )

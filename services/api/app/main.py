@@ -284,6 +284,27 @@ def get_entry(
     return entry
 
 
+@api_v1_router.post("/entries/{entry_id}/freeze")
+def freeze_entry(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, str | bool]:
+    entry = db.get(Entry, entry_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    if entry.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail={"code": "forbidden", "message": "Not allowed"}
+        )
+
+    if not entry.is_frozen:
+        entry.is_frozen = True
+        db.commit()
+
+    return {"status": "frozen", "id": entry_id, "is_frozen": True}
+
+
 @api_v1_router.get("/entries/{entry_id}/audio")
 def get_entry_audio(
     entry_id: str,
@@ -315,6 +336,11 @@ def delete_entry(
     if entry.user_id != current_user.id:
         raise HTTPException(
             status_code=403, detail={"code": "forbidden", "message": "Not allowed"}
+        )
+    if entry.is_frozen:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "frozen", "message": "Entry is frozen"},
         )
 
     path = settings.data_dir / entry.audio_path
