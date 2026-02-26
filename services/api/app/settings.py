@@ -1,6 +1,8 @@
 from pathlib import Path
+from typing import Annotated
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -19,6 +21,19 @@ class Settings(BaseSettings):
     admin_email: str | None = None
     admin_password: str | None = None
 
+    allowed_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://localhost:8501",
+        "http://localhost:8000",
+    ]
+    allowed_hosts: Annotated[list[str], NoDecode] = [
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+    ]
+    enable_hsts: bool = False
+    hsts_max_age: int = 31536000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -32,6 +47,13 @@ class Settings(BaseSettings):
     @property
     def audio_dir(self) -> Path:
         return self.data_dir / "audio"
+
+    @field_validator("allowed_origins", "allowed_hosts", mode="before")
+    @classmethod
+    def _parse_csv_list(cls, value: list[str] | str) -> list[str]:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
 
 settings = Settings()

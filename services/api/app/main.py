@@ -15,6 +15,8 @@ from fastapi import (
     UploadFile,
 )
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
 from sqlalchemy.orm import Session
@@ -30,6 +32,39 @@ from app.storage import ALLOWED_MIME_TYPES, stream_upload_to_disk
 app = FastAPI(title=settings.app_name, version=settings.app_version)
 logger = logging.getLogger(__name__)
 api_v1_router = APIRouter(prefix="/api/v1")
+
+if "*" in settings.allowed_origins:
+    raise RuntimeError("Wildcard origin '*' is not allowed in ALLOWED_ORIGINS")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.allowed_origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+
+
+@app.middleware("http")
+async def security_headers_middleware(request, call_next):
+    response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin"
+    response.headers["Cross-Origin-Resource-Policy"] = "same-site"
+    if request.url.path.startswith("/api/"):
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'none'; frame-ancestors 'none'"
+        )
+    if settings.enable_hsts:
+        response.headers["Strict-Transport-Security"] = (
+            f"max-age={settings.hsts_max_age}; includeSubDomains"
+        )
+    return response
+
 
 SEED_QUESTIONS: list[tuple[str, str]] = [
     ("Quel moment t'a fait sourire aujourd'hui ?", "gratitude"),
