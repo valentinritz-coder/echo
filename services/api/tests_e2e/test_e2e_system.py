@@ -1,6 +1,9 @@
 import re
 
 import httpx
+import pytest
+
+pytestmark = pytest.mark.e2e
 
 
 def _assert_request_id(value: str) -> None:

@@ -1,4 +1,7 @@
 import httpx
+import pytest
+
+pytestmark = pytest.mark.e2e
 
 
 def _login(base_url: str, email: str, password: str) -> dict[str, str]:

@@ -137,6 +137,10 @@ def e2e_stack(e2e_base_url: str):
     """
     Session-scoped: bring stack up once for all E2E tests, tear down at end.
     """
+    run_e2e = os.environ.get("RUN_E2E", "").strip().lower() in {"1", "true", "yes"}
+    if not run_e2e:
+        pytest.skip("E2E disabled by default. Set RUN_E2E=1 to enable Docker E2E tests.")
+
     repo = _repo_root()
 
     if shutil.which("docker") is None:
