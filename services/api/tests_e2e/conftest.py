@@ -139,7 +139,9 @@ def e2e_stack(e2e_base_url: str):
     """
     run_e2e = os.environ.get("RUN_E2E", "").strip().lower() in {"1", "true", "yes"}
     if not run_e2e:
-        pytest.skip("E2E disabled by default. Set RUN_E2E=1 to enable Docker E2E tests.")
+        pytest.skip(
+            "E2E disabled by default. Set RUN_E2E=1 to enable Docker E2E tests."
+        )
 
     repo = _repo_root()
 
