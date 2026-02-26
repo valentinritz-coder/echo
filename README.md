@@ -237,6 +237,10 @@ Exemple dans `.env.example`:
 - `ENABLE_HSTS`: active l'en-tête `Strict-Transport-Security` (`false` par défaut)
 - `HSTS_MAX_AGE`: valeur `max-age` pour HSTS (défaut: `31536000`)
 
+## Backups & restore
+
+Voir la documentation dédiée: [`docs/backup_restore.md`](docs/backup_restore.md).
+
 ## Structure du projet
 
 ```text
