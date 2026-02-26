@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Echo — Accueil</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="page-glow" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="Echo">Echo</a>
+      <a class="login-link" href="#">Se connecter</a>
+    </header>
+
+    <main class="hero" role="main">
+      <h1>Que veux-tu garder aujourd’hui&nbsp;?</h1>
+
+      <form class="input-shell" action="#" method="get">
+        <label for="echo-input" class="sr-only">Entrée principale</label>
+        <input
+          id="echo-input"
+          type="text"
+          name="q"
+          placeholder="Un souvenir, une pensée, une note…"
+          autocomplete="off"
+        />
+        <button type="submit" class="primary-action">Commencer</button>
+      </form>
+
+      <div class="modes" aria-label="Modes de saisie">
+        <button type="button" class="mode-btn">🎙 Audio</button>
+        <button type="button" class="mode-btn">📝 Texte</button>
+        <button type="button" class="mode-btn">📷 Photo</button>
+      </div>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
