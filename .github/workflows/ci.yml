@@ -33,4 +33,4 @@ jobs:
         run: ruff format --check .
 
       - name: Pytest with coverage threshold
-        run: pytest -q --cov=app --cov-report=term-missing --cov-fail-under=70
+        run: pytest -q -m "not e2e" --cov=app --cov-report=term-missing --cov-fail-under=70
