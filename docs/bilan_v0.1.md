@@ -19,7 +19,7 @@ Lot clôturé côté API/infra:
 
 - Un utilisateur authentifié peut se connecter (`/auth/login`) puis rafraîchir son token (`/auth/refresh`) pour rester connecté sans ressaisie immédiate du mot de passe.
 - Les entrées audio sont privées: un utilisateur ne peut ni lire, ni télécharger, ni supprimer les entrées d’un autre utilisateur (retour `403`).
-- L’upload audio accepte plusieurs formats (mp3, m4a/mp4, wav, ogg, aac, 3gpp, webm, aiff), avec refus explicite des fichiers invalides (MIME/signature/extension) et des fichiers trop volumineux (`413`).
+- L’upload audio accepte les formats définis dans `ALLOWED_MIME_TYPES` (`audio/mpeg`, `audio/mp4`, `audio/x-m4a`, `audio/wav`, `audio/x-wav`, `audio/ogg`, `audio/aac`, `audio/3gpp`, `audio/3gpp2`, `audio/webm`, `audio/aiff`), avec refus explicite des fichiers invalides (MIME/signature/extension) et des fichiers trop volumineux (`413`).
 - La bibliothèque est paginée (paramètres `limit`, `offset`, `sort`) pour garder des temps de réponse stables quand le volume d’entrées augmente.
 - Une entrée peut être « gelée » via `POST /entries/{id}/freeze`; ensuite sa suppression via `DELETE /entries/{id}` est bloquée (`409`).
 - L’état de la plateforme est vérifiable via `/api/v1/health` (liveness) et `/api/v1/readyz` (DB + répertoire audio réellement utilisable).
@@ -27,8 +27,8 @@ Lot clôturé côté API/infra:
 ## Ce qui est livré (vue technique)
 
 - Middleware `RequestIdMiddleware` injectant/normalisant `X-Request-Id` et journalisation JSON (`method`, `path`, `status_code`, `duration_ms`, `query_keys`).
-- Upload streaming avec écriture atomique via fichier temporaire + `os.replace`, calcul SHA-256 au fil de l’eau, et extraction optionnelle de durée WAV.
-- Validation upload en couches: MIME autorisé, extension cohérente, signature binaire conforme au type attendu.
+- Upload streaming avec écriture atomique via fichier temporaire + `os.replace`, calcul SHA-256 au fil de l’eau, et extraction de durée uniquement pour les fichiers WAV (`audio/wav`, `audio/x-wav`).
+- Validation upload en couches: extension cohérente avec le MIME déclaré, puis contrôle de signature binaire sur les 512 premiers octets selon le MIME attendu.
 - Schéma DB enrichi via Alembic: utilisateurs + FK, index de pagination, métadonnées audio (`audio_sha256`, `audio_duration_ms`), drapeau de gel (`is_frozen`).
 - Vérification au startup de l’état DB (warning explicite si migrations non appliquées).
 - Couverture de tests: auth, ACL, upload, pagination, freeze, endpoints système, sécurité HTTP, et scénarios E2E.
@@ -56,7 +56,7 @@ Lot clôturé côté API/infra:
   Nécessite JWT; seed les questions si besoin, puis retourne la question active du jour (rotation déterministe), sinon `404` si aucune active.
 
 - `POST /api/v1/entries`  
-  Nécessite JWT; upload multipart (`question_id`, `audio_file`) validé en streaming (MIME/signature/taille), persiste le fichier et crée l’entrée avec `audio_size`, `audio_sha256`, `audio_duration_ms`.
+  Nécessite JWT; upload multipart (`question_id`, `audio_file`) validé en streaming (MIME/signature/taille), persiste le fichier et crée l’entrée avec `audio_size`, `audio_sha256`, `audio_duration_ms` (durée renseignée uniquement pour WAV, sinon `null`).
 
 - `GET /api/v1/entries`  
   Nécessite JWT; liste uniquement les entrées de l’utilisateur courant avec pagination (`limit` plafonné à 200, `offset`) et tri (`created_at_*`, `id_*`).
@@ -80,21 +80,19 @@ Lot clôturé côté API/infra:
 Chaîne de migrations Alembic livrée:
 
 1. `0001_init`  
-   Crée `questions` et `entries` (champs initiaux audio + `created_at`).
+   Crée `questions` et `entries` (incluant `user_id`, `question_id`, champs audio et `created_at`) et les index `ix_questions_id`, `ix_entries_user_id`.
 
 2. `0002_users_and_auth`  
-   Crée `users`, ajoute la contrainte FK `entries.user_id -> users.id`, et migre les entrées legacy vers un utilisateur technique `legacy` si nécessaire.
+   Crée `users` (+ index unique `ix_users_email`), insère conditionnellement l’utilisateur `legacy`, met à jour les `entries.user_id` non référencés vers `legacy`, puis ajoute la FK `entries.user_id -> users.id`.
 
 3. `0003_entries_list_indexes`  
    Ajoute l’index composite `ix_entries_user_id_created_at_id` pour la pagination/tri des listes.
 
 4. `0004_entry_audio_metadata`  
-   Ajoute les colonnes:
-   - `audio_sha256` (`String(64)`, non nul, valeur par défaut initiale),
-   - `audio_duration_ms` (`Integer`, nullable).
+   Ajoute les colonnes `audio_sha256` (`String(64)`, non nul, `server_default` à 64 zéros) et `audio_duration_ms` (`Integer`, nullable).
 
 5. `0005_entry_freeze_flag`  
-   Ajoute la colonne `is_frozen` (`Boolean`, non nul, défaut `0`) pour le comportement WORM applicatif.
+   Ajoute la colonne `is_frozen` (`Boolean`, non nul, `server_default` `0`) pour le comportement WORM applicatif.
 
 ---
 
@@ -118,10 +116,10 @@ cd services/api && pytest
 ### Tests E2E (opt-in)
 
 ```bash
-cd services/api && pytest -m e2e
+cd services/api && RUN_E2E=1 pytest -q tests_e2e
 ```
 
-Pré-requis E2E: stack API démarrée + DB migrée + users de test disponibles (cf. fixtures `tests_e2e`).
+Pré-requis E2E: Docker installé, daemon Docker actif (`docker info` OK) et accès à Docker Compose (les tests montent/descendent la stack sandbox, appliquent les migrations, puis seedent les utilisateurs de test).
 
 ### Smoke test readiness
 
@@ -185,9 +183,9 @@ retourne `409` avec code d’erreur `frozen`.
 
 ## Known issues / warnings
 
-- **Avertissement passlib/bcrypt déprécié** observé en tests (`CryptContext(..., deprecated="auto")` + backend bcrypt):
-  - Impact: bruit dans les logs/tests, pas de blocage fonctionnel immédiat.
-  - Reco: planifier migration contrôlée de stratégie hash (ex. Argon2id ou bcrypt sans composants dépréciés), avec compatibilité de vérification des hashes existants.
+- **Warning CI lié à passlib**: `passlib` importe le module `crypt`, déprécié en Python 3.13.
+  - Impact: warning en CI/tests, pas de blocage fonctionnel immédiat.
+  - Reco: suivre la compatibilité de la chaîne de dépendances auth avec Python 3.13+.
 
 - **Dépréciation FastAPI `@app.on_event("startup")`**:
   - Impact: warning de framework; risque de casse à moyen terme lors de montée de version.
