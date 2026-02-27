@@ -330,3 +330,176 @@ function renderSidebarList() {
 
 // init
 renderSidebarList();
+
+// =============================
+// Composer: rotating placeholder
+// =============================
+const ta = document.getElementById("echo-input");
+
+const ideaPlaceholders = [
+  "Une phrase que tu veux qu’on n’oublie pas…",
+  "Un détail minuscule, mais important…",
+  "Un moment simple qui t’a fait du bien…",
+  "Quelque chose que tu n’as jamais dit…",
+  "Une photo à expliquer dans 20 ans…",
+  "Un son, une voix, un endroit…",
+  "Une décision que tu assumes enfin…",
+];
+
+let ideaIdx = 0;
+let ideaTimer = null;
+
+function setIdeaPlaceholder(force = false) {
+  if (!ta) return;
+  if (!force && ta.value && ta.value.trim()) return; // ne pas gêner si l'utilisateur écrit
+  ta.placeholder = ideaPlaceholders[ideaIdx % ideaPlaceholders.length];
+  ideaIdx++;
+}
+
+function startIdeaRotation() {
+  if (!ta) return;
+  setIdeaPlaceholder(true);
+  ideaTimer = window.setInterval(() => setIdeaPlaceholder(false), 5000);
+}
+
+function stopIdeaRotation() {
+  if (ideaTimer) window.clearInterval(ideaTimer);
+  ideaTimer = null;
+}
+
+if (ta) {
+  startIdeaRotation();
+  ta.addEventListener("focus", () => stopIdeaRotation());
+  ta.addEventListener("blur", () => startIdeaRotation());
+  ta.addEventListener("input", () => {
+    // si l’utilisateur efface tout, on remet une idée
+    if (!ta.value.trim()) setIdeaPlaceholder(true);
+  });
+}
+
+// =============================
+// Images: preview thumbs
+// =============================
+const imagesInput = document.getElementById("images-input");
+const imagesPreview = document.getElementById("images-preview");
+
+function clearImagesPreview() {
+  if (!imagesPreview) return;
+  imagesPreview.innerHTML = "";
+}
+
+function addThumb(file) {
+  const wrap = document.createElement("div");
+  wrap.className = "thumb";
+  const img = document.createElement("img");
+  img.alt = "";
+  wrap.appendChild(img);
+
+  const url = URL.createObjectURL(file);
+  img.src = url;
+  img.onload = () => URL.revokeObjectURL(url);
+
+  imagesPreview.appendChild(wrap);
+}
+
+if (imagesInput && imagesPreview) {
+  imagesInput.addEventListener("change", () => {
+    clearImagesPreview();
+    const files = Array.from(imagesInput.files || []);
+    files.slice(0, 9).forEach(addThumb); // limite visuelle
+  });
+}
+
+// =============================
+// Audio: single mic button state
+// (API MediaRecorder - minimal demo)
+// =============================
+const micBtn = document.getElementById("audio-btn");
+const audioPreview = document.getElementById("audio-preview");
+const audioStatus = document.getElementById("audio-status");
+const audioClear = document.getElementById("audio-clear");
+
+let mediaRecorder = null;
+let audioChunks = [];
+let audioBlobUrl = null;
+
+function setAudioUi({ recording = false, hasAudio = false, status = "Prêt." }) {
+  if (micBtn) {
+    micBtn.classList.toggle("is-recording", recording);
+    micBtn.classList.toggle("has-audio", hasAudio);
+    micBtn.setAttribute("aria-pressed", recording ? "true" : "false");
+  }
+  if (audioStatus) audioStatus.textContent = status;
+  if (audioClear) audioClear.disabled = !hasAudio && !recording;
+}
+
+async function startRecording() {
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setAudioUi({ status: "Micro non supporté.", recording: false, hasAudio: false });
+    return;
+  }
+
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+  };
+
+  mediaRecorder.onstop = () => {
+    stream.getTracks().forEach((t) => t.stop());
+    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
+
+    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+    audioBlobUrl = URL.createObjectURL(blob);
+
+    if (audioPreview) {
+      audioPreview.hidden = false;
+      audioPreview.src = audioBlobUrl;
+    }
+    setAudioUi({ recording: false, hasAudio: true, status: "Audio prêt." });
+  };
+
+  mediaRecorder.start();
+  setAudioUi({ recording: true, hasAudio: false, status: "Enregistrement…" });
+}
+
+function stopRecording() {
+  if (!mediaRecorder) return;
+  if (mediaRecorder.state === "recording") mediaRecorder.stop();
+}
+
+function clearRecording() {
+  stopRecording();
+  audioChunks = [];
+  if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
+  audioBlobUrl = null;
+
+  if (audioPreview) {
+    audioPreview.hidden = true;
+    audioPreview.removeAttribute("src");
+    audioPreview.load?.();
+  }
+  setAudioUi({ recording: false, hasAudio: false, status: "Prêt." });
+}
+
+if (micBtn) {
+  micBtn.addEventListener("click", async () => {
+    if (mediaRecorder && mediaRecorder.state === "recording") {
+      stopRecording();
+    } else {
+      try {
+        await startRecording();
+      } catch {
+        setAudioUi({ recording: false, hasAudio: false, status: "Permission micro refusée." });
+      }
+    }
+  });
+}
+
+if (audioClear) {
+  audioClear.addEventListener("click", () => clearRecording());
+}
+
+setAudioUi({ recording: false, hasAudio: false, status: "Prêt." });
