@@ -1,12 +1,21 @@
 // Intensifie légèrement le halo quand le champ principal reçoit le focus.
-const input = document.querySelector('#echo-input');
+const ta = document.getElementById("echo-input");
 
-if (input) {
-  input.addEventListener('focus', () => {
-    document.body.classList.add('is-focused');
-  });
+function autosize(el) {
+  el.style.height = "auto";
 
-  input.addEventListener('blur', () => {
-    document.body.classList.remove('is-focused');
-  });
+  const styles = window.getComputedStyle(el);
+  const maxH = parseFloat(styles.maxHeight) || Infinity;
+
+  const next = Math.min(el.scrollHeight, maxH);
+  el.style.height = next + "px";
+
+  // si on dépasse max, on laisse scroll interne
+  el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
+}
+
+if (ta) {
+  autosize(ta);
+  ta.addEventListener("input", () => autosize(ta));
+  window.addEventListener("resize", () => autosize(ta));
 }

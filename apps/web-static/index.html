@@ -3,33 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Echo — Accueil</title>
+    <title>echo — Accueil</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
+
   <body>
+    <a class="sr-only" href="#main">Aller au contenu principal</a>
+
     <div class="page-glow" aria-hidden="true"></div>
 
-    <header class="topbar">
-      <a class="brand" href="#" aria-label="Echo"><span class="brand-text">Ech</span><span class="orb" aria-hidden="true"></span></a>
-      <a class="login-link" href="#">Se connecter</a>
+    <header class="topbar" role="banner">
+      <div class="topbar-inner">
+        <a class="brand" href="/" aria-label="echo (accueil)">
+          <svg class="brand-mark" viewBox="0 0 90 24" role="img" aria-label="echo">
+            <text
+              x="0"
+              y="18"
+              font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+              font-size="18"
+              font-weight="600"
+              letter-spacing="1"
+              fill="currentColor"
+            >
+              echo
+            </text>
+          </svg>
+        </a>
+
+        <nav aria-label="Compte">
+          <a class="login-link" href="/login">Log in</a>
+        </nav>
+      </div>
     </header>
 
-    <main class="hero" role="main">
-      <h1>Que veux-tu garder aujourd’hui&nbsp;?</h1>
+    <main id="main" class="hero" role="main">
+      <h1>Que veux-tu transmettre aujourd’hui ?</h1>
 
-      <form class="input-shell" action="#" method="get">
+      <form class="input-shell" action="#" method="get" aria-label="Créer une entrée">
         <label for="echo-input" class="sr-only">Entrée principale</label>
-        <input
-          id="echo-input"
-          type="text"
-          name="q"
-          placeholder="Un souvenir, une pensée, une note…"
-          autocomplete="off"
-        />
+        <textarea
+		  id="echo-input"
+		  name="q"
+		  rows="1"
+		  placeholder="Un souvenir, une pensée, une note…"
+		></textarea>
         <button type="submit" class="primary-action">Commencer</button>
       </form>
 
-      <div class="modes" aria-label="Modes de saisie">
+      <div class="modes" role="group" aria-label="Mode de saisie">
         <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
         <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
         <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
