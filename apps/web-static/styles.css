@@ -6,8 +6,9 @@
   --muted: #9eacb9;
   --border: rgba(201, 218, 232, 0.16);
   --border-focus: rgba(201, 218, 232, 0.28);
-  --halo-soft: rgba(96, 144, 178, 0.16);
-  --halo-outer: rgba(58, 94, 122, 0.02);
+  --halo-soft: rgba(96, 144, 178, 0.14);
+  --halo-orb-core: rgba(188, 224, 247, 0.9);
+  --halo-orb-soft: rgba(130, 184, 216, 0.62);
 }
 
 * {
@@ -30,20 +31,24 @@ body {
 
 .page-glow {
   position: fixed;
-  inset: 0;
+  inset: -14% -10%;
   pointer-events: none;
-  background:
-    radial-gradient(55% 35% at 50% 50%, var(--halo-soft), transparent 70%),
-    radial-gradient(40% 25% at 50% 45%, var(--halo-outer), transparent 90%);
-  opacity: 0.32;
-  filter: blur(34px);
-  transform: scale(1);
-  transition: opacity 0.8s ease;
-  animation: breathe 52s ease-in-out infinite;
+  z-index: 0;
+  background: radial-gradient(60% 54% at 50% 46%, var(--halo-soft), transparent 76%);
+  opacity: 0.34;
+  filter: blur(54px);
+  transform: translate3d(0, 0, 0) scale(1);
+  animation: glowDrift 55s ease-in-out infinite;
 }
 
 body.is-focused .page-glow {
-  opacity: 0.37; /* +5% max when field focused */
+  opacity: 0.38;
+}
+
+.topbar,
+.hero {
+  position: relative;
+  z-index: 1;
 }
 
 .topbar {
@@ -61,8 +66,27 @@ body.is-focused .page-glow {
 }
 
 .brand {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.05em;
   font-size: 1rem;
   font-weight: 600;
+}
+
+.brand-text {
+  display: inline-block;
+}
+
+.orb {
+  width: 0.64em;
+  height: 0.64em;
+  margin-left: 0.02em;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 36%, var(--halo-orb-core), var(--halo-orb-soft) 58%, transparent 100%);
+  box-shadow: 0 0 0.52em rgba(166, 212, 241, 0.4);
+  filter: blur(0.2px);
+  transform: translateY(-0.02em);
+  animation: orbPulse 8s ease-in-out infinite;
 }
 
 .login-link {
@@ -138,16 +162,19 @@ input::placeholder {
 }
 
 .modes {
-  display: flex;
-  gap: 0.55rem;
-  flex-wrap: wrap;
-  justify-content: center;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(201, 218, 232, 0.16);
+  background: rgba(24, 35, 44, 0.56);
 }
 
 .mode-btn {
-  border: 1px solid rgba(201, 218, 232, 0.16);
+  border: 0;
   border-radius: 999px;
-  background: rgba(24, 35, 44, 0.72);
+  background: transparent;
   color: #d5dee5;
   font-size: 0.9rem;
   padding: 0.45rem 0.85rem;
@@ -155,7 +182,12 @@ input::placeholder {
 }
 
 .mode-btn:hover {
-  background: rgba(32, 46, 57, 0.8);
+  background: rgba(53, 73, 88, 0.42);
+}
+
+.mode-btn.is-active {
+  background: rgba(201, 218, 232, 0.16);
+  color: #f0f5f9;
 }
 
 .mode-btn:focus-visible,
@@ -178,15 +210,34 @@ input::placeholder {
   border: 0;
 }
 
-@keyframes breathe {
+@keyframes glowDrift {
   0%,
   100% {
-    transform: scale(1);
-    opacity: 0.31;
+    transform: translate3d(-0.4%, -0.6%, 0) scale(1);
+    opacity: 0.32;
   }
   50% {
-    transform: scale(1.02);
-    opacity: 0.34;
+    transform: translate3d(0.4%, 0.5%, 0) scale(1.018);
+    opacity: 0.36;
+  }
+}
+
+@keyframes orbPulse {
+  0%,
+  100% {
+    opacity: 0.86;
+    transform: translateY(-0.02em) scale(0.96);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-0.03em) scale(1.02);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-glow,
+  .orb {
+    animation: none;
   }
 }
 
