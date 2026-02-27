@@ -31,7 +31,7 @@ class EntryOut(ORMBaseModel):
     created_at: datetime
 
 
-class EntryUpdateIn(ORMBaseModel):
+class EntryUpdateIn(BaseModel):
     question_id: int
 
 

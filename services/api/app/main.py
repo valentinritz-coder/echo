@@ -348,8 +348,8 @@ def update_entry(
     db: Session = Depends(get_db),
 ) -> Entry:
     entry = _get_entry_or_404(db, entry_id)
-    _ensure_not_frozen(entry)
     _ensure_owner(entry, current_user)
+    _ensure_not_frozen(entry)
 
     question = db.get(Question, payload.question_id)
     if question is None:
@@ -369,8 +369,8 @@ async def upload_entry_audio(
     db: Session = Depends(get_db),
 ) -> Entry:
     entry = _get_entry_or_404(db, entry_id)
-    _ensure_not_frozen(entry)
     _ensure_owner(entry, current_user)
+    _ensure_not_frozen(entry)
 
     content_type = audio_file.content_type or ""
     if content_type not in ALLOWED_MIME_TYPES:
@@ -409,8 +409,8 @@ def delete_entry_audio(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     entry = _get_entry_or_404(db, entry_id)
-    _ensure_not_frozen(entry)
     _ensure_owner(entry, current_user)
+    _ensure_not_frozen(entry)
 
     path = settings.data_dir / entry.audio_path
     path.unlink(missing_ok=True)
@@ -430,8 +430,8 @@ def delete_entry(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     entry = _get_entry_or_404(db, entry_id)
-    _ensure_not_frozen(entry)
     _ensure_owner(entry, current_user)
+    _ensure_not_frozen(entry)
 
     path = settings.data_dir / entry.audio_path
     db.delete(entry)

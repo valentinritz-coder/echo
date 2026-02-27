@@ -5,7 +5,7 @@
 - **Décision produit**: `Frozen = immutable`.
 - Quand `entry.is_frozen = true`, **toute mutation** sur l’entry et ses assets est interdite.
 - Les opérations de lecture restent autorisées.
-- Le freeze est considéré **irréversible**: pas d’endpoint d’unfreeze (ou unfreeze explicitement interdit si endpoint historique existe).
+- Le freeze est **irréversible** (pas d’unfreeze fonctionnel).
 
 ---
 
@@ -15,20 +15,20 @@
 
 Sont dans le périmètre **toutes les routes mutantes** liées à une entry:
 
-1. Mutation du contenu de l’entry (texte, métadonnées éditables, etc.) via `PUT` / `PATCH`.
-2. Ajout d’asset (upload image/audio/etc.) via `POST` (multipart ou équivalent).
-3. Suppression d’un asset via `DELETE`.
+1. Toute modification de l’entry, quel que soit le champ, via `PUT` / `PATCH`.
+2. Ajout/remplacement d’asset audio via `POST`.
+3. Suppression d’asset audio via `DELETE`.
 4. Suppression de l’entry via `DELETE`.
-5. Action de freeze (si endpoint dédié) autorisée uniquement pour passer de `is_frozen=false` à `true`.
-6. Action d’unfreeze (si endpoint existe) interdite.
+5. Freeze via `POST /entries/{id}/freeze`.
+6. Unfreeze (si endpoint exposé) doit être refusé.
 
 ### 2) Définition de “mutation”
 
 Est une mutation toute requête qui modifie l’état persistant de l’entry ou de ses assets, notamment:
 
 - `PUT`/`PATCH` entry
-- `POST` upload asset
-- `DELETE` asset
+- `POST` upload audio
+- `DELETE` audio
 - `DELETE` entry
 - Toute autre action écrivant en base/fichiers sur ce périmètre
 
@@ -38,19 +38,26 @@ Est une mutation toute requête qui modifie l’état persistant de l’entry ou
 **WHEN** une route mutante est appelée sur cette entry ou ses assets  
 **THEN** la requête est rejetée avec `409 Conflict`.
 
-### 4) Lecture et erreurs hors freeze
+### 4) Priorité des statuts (verrouillée)
 
-- Les endpoints de lecture (`GET`) restent inchangés et autorisés selon ACL existantes.
-- Les cas “resource not found” ou identifiants invalides restent inchangés:
-  - `404 Not Found` si entry/asset n’existe pas.
-  - Ce comportement est indépendant de l’état `is_frozen`.
+Pour les routes mutantes:
 
-### 5) Cas explicitement attendus
+1. `404 Not Found` si entry/asset n’existe pas (prioritaire).
+2. `403 Forbidden` si la ressource existe mais ACL/ownership refuse.
+3. `409 Conflict` si la ressource existe, autorisée, et `is_frozen=true`.
 
-- Upload asset: si entry frozen, échec `409` même si fichier valide.
-- Suppression asset: si entry frozen, échec `409`.
-- Update texte/entry: si entry frozen, échec `409`.
-- Suppression entry: si entry frozen, échec `409` (aligné existant).
+### 5) Endpoint freeze
+
+`POST /entries/{id}/freeze`:
+
+- si `is_frozen=false` => passe à `true`, retourne `200` avec body:
+  `{"status": "frozen", "id": "<entry_id>", "is_frozen": true}`
+- si `is_frozen=true` => idempotent, retourne **le même succès** (`200` + même body).
+
+### 6) Lecture et not found
+
+- Les endpoints `GET` restent autorisés selon ACL existantes.
+- Les cas not found restent inchangés (`404`), indépendamment de l’état frozen.
 
 ---
 
@@ -58,20 +65,18 @@ Est une mutation toute requête qui modifie l’état persistant de l’entry ou
 
 ### Convention explicite
 
-- `409 Conflict` = l’opération est refusée car **l’état courant de la ressource** est incompatible avec l’action demandée (ici: `is_frozen=true`).
-- `403 Forbidden` = refus lié aux **droits/ACL/authz** (acteur non autorisé), pas à l’état métier frozen.
+- `409 Conflict` = état métier incompatible (`is_frozen=true`) pour une mutation.
+- `403 Forbidden` = refus ACL/ownership/authz.
+- `404 Not Found` = ressource inexistante.
 
-### Application de la convention
+Payload standard pour tout `409` lié au freeze:
 
-Pour toute mutation ciblant une entry frozen (ou ses assets), renvoyer `409`, y compris:
-
-- update entry
-- upload asset
-- delete asset
-- delete entry
-- unfreeze (si endpoint exposé)
-
-`403` reste réservé aux refus d’autorisation, indépendamment de freeze.
+```json
+{
+  "error_code": "ENTRY_FROZEN_IMMUTABLE",
+  "detail": "Entry is frozen and cannot be modified"
+}
+```
 
 ---
 
@@ -79,72 +84,47 @@ Pour toute mutation ciblant une entry frozen (ou ses assets), renvoyer `409`, y 
 
 | Action | Précondition | Autorisé ? | Code HTTP attendu | Notes |
 |---|---|---:|---|---|
-| `GET /entries/{id}` | entry existe, frozen=false | Oui | 200 | Lecture inchangée |
-| `GET /entries/{id}` | entry existe, frozen=true | Oui | 200 | Lecture inchangée |
-| `PATCH/PUT /entries/{id}` | entry existe, frozen=false | Oui | 200/204 | Selon implémentation actuelle |
-| `PATCH/PUT /entries/{id}` | entry existe, frozen=true | Non | 409 | Frozen => immutable |
-| `POST /entries/{id}/assets` | entry existe, frozen=false, fichier valide | Oui | 201/200 | Selon implémentation actuelle |
-| `POST /entries/{id}/assets` | entry existe, frozen=true, fichier valide | Non | 409 | Validation fichier sans impact sur la décision |
-| `DELETE /entries/{id}/assets/{asset_id}` | entry existe, asset existe, frozen=false | Oui | 204/200 | Selon implémentation actuelle |
-| `DELETE /entries/{id}/assets/{asset_id}` | entry existe, asset existe, frozen=true | Non | 409 | Frozen => immutable |
-| `DELETE /entries/{id}` | entry existe, frozen=false | Oui | 204/200 | Selon implémentation actuelle |
-| `DELETE /entries/{id}` | entry existe, frozen=true | Non | 409 | Alignement comportement existant |
-| `POST /entries/{id}/freeze` (si existe) | entry existe, frozen=false | Oui | 200/204 | Transition autorisée vers frozen=true |
-| `POST /entries/{id}/freeze` (si existe) | entry existe, frozen=true | Non (idempotence ou conflit selon API) | 200/204 ou 409 | À figer selon contrat actuel |
-| `POST /entries/{id}/unfreeze` (si existe) | entry existe, frozen=true | Non | 409 | Unfreeze interdit |
-| Toute mutation sur id inexistant | entry absente | Non | 404 | Priorité au not found inchangée |
+| `GET /entries/{id}` | entry existe | Oui | 200 | Lecture inchangée |
+| `PATCH /entries/{id}` | entry absente | Non | 404 | Priorité not found |
+| `PATCH /entries/{id}` | entry existe, non-owner | Non | 403 | Priorité ACL |
+| `PATCH /entries/{id}` | entry existe, owner, frozen=true | Non | 409 | Payload freeze standard |
+| `POST /entries/{id}/audio` | entry absente | Non | 404 | Priorité not found |
+| `POST /entries/{id}/audio` | entry existe, non-owner | Non | 403 | Priorité ACL |
+| `POST /entries/{id}/audio` | entry existe, owner, frozen=true, fichier valide | Non | 409 | Refus même fichier valide |
+| `DELETE /entries/{id}/audio` | entry absente | Non | 404 | Priorité not found |
+| `DELETE /entries/{id}/audio` | entry existe, non-owner | Non | 403 | Priorité ACL |
+| `DELETE /entries/{id}/audio` | entry existe, owner, frozen=true | Non | 409 | Payload freeze standard |
+| `DELETE /entries/{id}` | entry absente | Non | 404 | Priorité not found |
+| `DELETE /entries/{id}` | entry existe, non-owner | Non | 403 | Priorité ACL |
+| `DELETE /entries/{id}` | entry existe, owner, frozen=true | Non | 409 | Payload freeze standard |
+| `POST /entries/{id}/freeze` | entry existe, owner, frozen=false | Oui | 200 | Gèle l’entry |
+| `POST /entries/{id}/freeze` | entry existe, owner, frozen=true | Oui | 200 | Idempotent |
+| `POST /entries/{id}/unfreeze` (si existe) | entry existe | Non | 409 | Unfreeze interdit |
 
 ---
 
 ## Examples
 
-### Exemple nominal (non frozen)
+### Nominal non-frozen
 
-**GIVEN** `entry: 123`, `is_frozen=false`  
-**WHEN** client envoie `PATCH /entries/123` pour modifier le texte  
-**THEN** modification acceptée (`200` ou `204` selon contrat existant).
-
-### Exemple interdit: update texte
-
-**GIVEN** `entry: 123`, `is_frozen=true`  
+**GIVEN** `entry: 123`, owner, `is_frozen=false`  
 **WHEN** client envoie `PATCH /entries/123`  
-**THEN** réponse `409 Conflict`, aucune modification persistée.
+**THEN** succès (`200/204` selon endpoint).
 
-### Exemple interdit: upload asset valide
+### Interdit frozen
 
-**GIVEN** `entry: 123`, `is_frozen=true`, fichier audio valide  
-**WHEN** client envoie `POST /entries/123/assets`  
-**THEN** réponse `409 Conflict`, aucun asset créé.
-
-### Exemple interdit: delete asset
-
-**GIVEN** `entry: 123`, `is_frozen=true`, `asset: a1` existant  
-**WHEN** client envoie `DELETE /entries/123/assets/a1`  
-**THEN** réponse `409 Conflict`, asset conservé.
-
-### Exemple interdit: delete entry
-
-**GIVEN** `entry: 123`, `is_frozen=true`  
+**GIVEN** `entry: 123`, owner, `is_frozen=true`  
 **WHEN** client envoie `DELETE /entries/123`  
-**THEN** réponse `409 Conflict`, entry conservée.
+**THEN** `409` + payload `ENTRY_FROZEN_IMMUTABLE`.
 
-### Exemple ACL (différence 403 vs 409)
+### Priorité ACL sur frozen
 
-**GIVEN** `entry: 123`, `is_frozen=false`, utilisateur sans droit d’édition  
-**WHEN** client envoie `PATCH /entries/123`  
-**THEN** réponse `403 Forbidden` (motif ACL, pas freeze).
+**GIVEN** `entry: 123`, non-owner, `is_frozen=true`  
+**WHEN** client envoie `DELETE /entries/123`  
+**THEN** `403 Forbidden` (ACL prioritaire), pas `409`.
 
----
+### Priorité not found
 
-## Notes d’implémentation (non contraignantes, pour testabilité)
-
-- Centraliser la décision “mutation autorisée ?” dans un garde/validator unique (service ou dépendance FastAPI) pour éviter les divergences entre endpoints.
-- Appliquer ce garde à toutes les routes mutantes entry + assets.
-- Conserver un message d’erreur stable (ex: `ENTRY_FROZEN_IMMUTABLE`) pour assertions de tests robustes.
-- Couvrir tests API par matrice: non frozen (success), frozen (409), unauthorized (403), not found (404).
-
----
-
-## Dépendances
-
-Aucune dépendance technique pour cette spec (P0-1 spec only).
+**GIVEN** `entry: not-found`  
+**WHEN** client envoie `POST /entries/not-found/audio`  
+**THEN** `404 Not Found`.
