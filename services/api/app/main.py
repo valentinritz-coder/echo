@@ -195,6 +195,22 @@ def _ensure_not_frozen(entry: Entry) -> None:
         raise HTTPException(status_code=409, detail=FROZEN_ERROR)
 
 
+def _validate_text_content(text_content: str | None) -> None:
+    if text_content is None:
+        return
+    if len(text_content) > settings.max_text_chars:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "text_content_too_long",
+                "message": (
+                    "text_content length exceeds "
+                    f"MAX_TEXT_CHARS ({settings.max_text_chars})"
+                ),
+            },
+        )
+
+
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
 def get_question_today(
     _: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -216,6 +232,7 @@ def get_question_today(
 @api_v1_router.post("/entries", response_model=EntryOut)
 async def create_entry(
     question_id: int = Form(...),
+    text_content: str | None = Form(default=None),
     audio_file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -234,6 +251,8 @@ async def create_entry(
                 "message": "Unsupported audio MIME type",
             },
         )
+
+    _validate_text_content(text_content)
 
     entry_id = str(uuid.uuid4())
     ext = ALLOWED_MIME_TYPES[content_type]
@@ -256,6 +275,7 @@ async def create_entry(
         audio_size=int(upload_info["size"]),
         audio_sha256=str(upload_info["sha256"]),
         audio_duration_ms=upload_info["duration_ms"],
+        text_content=text_content,
     )
     db.add(entry)
     db.commit()
@@ -351,11 +371,25 @@ def update_entry(
     _ensure_owner(entry, current_user)
     _ensure_not_frozen(entry)
 
-    question = db.get(Question, payload.question_id)
-    if question is None:
-        raise HTTPException(status_code=404, detail="Question not found")
+    if payload.question_id is None and payload.text_content is None:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "empty_update",
+                "message": "At least one updatable field must be provided",
+            },
+        )
 
-    entry.question_id = payload.question_id
+    if payload.question_id is not None:
+        question = db.get(Question, payload.question_id)
+        if question is None:
+            raise HTTPException(status_code=404, detail="Question not found")
+        entry.question_id = payload.question_id
+
+    if payload.text_content is not None:
+        _validate_text_content(payload.text_content)
+        entry.text_content = payload.text_content
+
     db.commit()
     db.refresh(entry)
     return entry

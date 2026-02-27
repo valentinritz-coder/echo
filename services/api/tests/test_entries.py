@@ -207,3 +207,50 @@ def test_legacy_root_endpoints_removed(tmp_path, monkeypatch):
     assert client.get("/questions/today").status_code == 404
     assert client.get("/entries").status_code == 404
     assert client.get("/entries/not-found").status_code == 404
+
+
+def test_create_entry_with_text_content_and_readback(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    created = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text_content": "hello"},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+
+    assert created.status_code == 200
+    assert created.json()["text_content"] == "hello"
+
+    entry_id = created.json()["id"]
+    fetched = client.get(f"{API_PREFIX}/entries/{entry_id}", headers=headers)
+    assert fetched.status_code == 200
+    assert fetched.json()["text_content"] == "hello"
+
+
+def test_text_content_length_validation(tmp_path, monkeypatch):
+    monkeypatch.setenv("MAX_TEXT_CHARS", "5")
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text_content": "bonjour"},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {
+        "error": {
+            "code": "text_content_too_long",
+            "message": "text_content length exceeds MAX_TEXT_CHARS (5)",
+        }
+    }

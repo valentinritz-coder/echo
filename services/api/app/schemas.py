@@ -27,12 +27,14 @@ class EntryOut(ORMBaseModel):
     question_id: int
     audio_mime: str
     audio_size: int
+    text_content: Optional[str] = None
     is_frozen: bool
     created_at: datetime
 
 
 class EntryUpdateIn(BaseModel):
-    question_id: int
+    question_id: Optional[int] = None
+    text_content: Optional[str] = None
 
 
 class EntriesListResponse(ORMBaseModel):

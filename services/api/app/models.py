@@ -1,7 +1,16 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, func, text
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    func,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -45,6 +54,7 @@ class Entry(Base):
     audio_size: Mapped[int] = mapped_column(Integer, nullable=False)
     audio_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     audio_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    text_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_frozen: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=False, server_default=text("0")
     )
