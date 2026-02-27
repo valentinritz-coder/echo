@@ -10,7 +10,7 @@
     <div class="page-glow" aria-hidden="true"></div>
 
     <header class="topbar">
-      <a class="brand" href="#" aria-label="Echo">Echo</a>
+      <a class="brand" href="#" aria-label="Echo"><span class="brand-text">Ech</span><span class="orb" aria-hidden="true"></span></a>
       <a class="login-link" href="#">Se connecter</a>
     </header>
 
@@ -30,9 +30,9 @@
       </form>
 
       <div class="modes" aria-label="Modes de saisie">
-        <button type="button" class="mode-btn">🎙 Audio</button>
-        <button type="button" class="mode-btn">📝 Texte</button>
-        <button type="button" class="mode-btn">📷 Photo</button>
+        <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
+        <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
+        <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
       </div>
     </main>
 
