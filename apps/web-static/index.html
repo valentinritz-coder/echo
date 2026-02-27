@@ -3,58 +3,70 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>echo — Accueil</title>
+    <title>echo — Souvenirs</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
-
   <body>
-    <a class="sr-only" href="#main">Aller au contenu principal</a>
-
+    <a class="sr-only" href="#workspace">Aller à l'éditeur</a>
     <div class="page-glow" aria-hidden="true"></div>
 
     <header class="topbar" role="banner">
       <div class="topbar-inner">
-        <a class="brand" href="/" aria-label="echo (accueil)">
-          <svg class="brand-mark" viewBox="0 0 90 24" role="img" aria-label="echo">
-            <text
-              x="0"
-              y="18"
-              font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-              font-size="18"
-              font-weight="600"
-              letter-spacing="1"
-              fill="currentColor"
-            >
-              echo
-            </text>
-          </svg>
-        </a>
-
-        <nav aria-label="Compte">
-          <a class="login-link" href="/login">Log in</a>
-        </nav>
+        <p class="brand" aria-label="echo">echo</p>
+        <button class="ghost-btn" type="button" aria-label="Compte">Compte</button>
       </div>
     </header>
 
-    <main id="main" class="hero" role="main">
-      <h1>Que veux-tu transmettre aujourd’hui ?</h1>
+    <main class="app-shell" role="main">
+      <section class="timeline-panel" aria-label="Timeline des souvenirs">
+        <button
+          id="timeline-toggle"
+          class="timeline-toggle"
+          type="button"
+          aria-expanded="false"
+          aria-controls="timeline-list"
+        >
+          Voir les souvenirs
+        </button>
+        <div id="timeline-list" class="timeline-list"></div>
+      </section>
 
-      <form class="input-shell" action="#" method="get" aria-label="Créer une entrée">
-        <label for="echo-input" class="sr-only">Entrée principale</label>
-        <textarea
-		  id="echo-input"
-		  name="q"
-		  rows="1"
-		  placeholder="Un souvenir, une pensée, une note…"
-		></textarea>
-        <button type="submit" class="primary-action">Commencer</button>
-      </form>
+      <section id="workspace" class="workspace" aria-label="Éditeur de souvenir">
+        <h1>Ton souvenir</h1>
 
-      <div class="modes" role="group" aria-label="Mode de saisie">
-        <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
-        <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
-        <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
-      </div>
+        <article class="editor-block" aria-labelledby="text-title">
+          <h2 id="text-title">Texte</h2>
+          <label class="sr-only" for="memory-text">Texte du souvenir</label>
+          <textarea
+            id="memory-text"
+            rows="1"
+            placeholder="Écris une pensée, un souvenir, une note…"
+          ></textarea>
+        </article>
+
+        <article class="editor-block" aria-labelledby="audio-title">
+          <h2 id="audio-title">Voix</h2>
+          <div class="row-wrap">
+            <button id="audio-action" class="soft-btn" type="button">Enregistrer ma voix</button>
+            <p id="audio-status" class="status">Aucun audio</p>
+          </div>
+        </article>
+
+        <article class="editor-block" aria-labelledby="image-title">
+          <h2 id="image-title">Image</h2>
+          <div class="row-wrap">
+            <button id="image-add" class="soft-btn" type="button">Ajouter une photo</button>
+            <button id="image-remove" class="ghost-btn" type="button">Supprimer</button>
+          </div>
+          <div id="image-preview" class="image-preview" aria-live="polite">
+            <p>Pas d'image ajoutée.</p>
+          </div>
+        </article>
+
+        <button id="save-memory" class="primary-action" type="button" disabled>
+          Enregistrer le souvenir
+        </button>
+      </section>
     </main>
 
     <script src="./app.js"></script>
