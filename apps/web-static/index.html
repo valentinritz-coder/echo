@@ -2,8 +2,16 @@
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e1419" />
+    <meta
+      name="description"
+      content="echo — Timeline personnelle pour écrire, enregistrer et conserver des souvenirs."
+    />
+
     <title>echo — Accueil</title>
+
     <link rel="stylesheet" href="./styles.css" />
   </head>
 
@@ -20,7 +28,7 @@
               x="0"
               y="18"
               font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
-              font-size="18"
+              font-size="20"
               font-weight="600"
               letter-spacing="1"
               fill="currentColor"
@@ -30,33 +38,56 @@
           </svg>
         </a>
 
-        <nav aria-label="Compte">
-          <a class="login-link" href="/login">Log in</a>
+        <nav class="topbar-actions" aria-label="Compte">
+          <a class="topbar-pill new-link" href="/" aria-label="Tell a new memory">New memory</a>
+          <a class="topbar-pill login-link" href="/login">Log in</a>
         </nav>
       </div>
     </header>
 
-    <main id="main" class="hero" role="main">
-      <h1>Que veux-tu transmettre aujourd’hui ?</h1>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Timeline">
+        <nav aria-label="Souvenirs">
+          <div class="sidebar-inner">
+            <div class="sidebar-head" aria-hidden="true"></div>
+            <ul class="sidebar-list" id="sidebar-list" aria-label="Navigation timeline"></ul>
+          </div>
+        </nav>
+      </aside>
 
-      <form class="input-shell" action="#" method="get" aria-label="Créer une entrée">
-        <label for="echo-input" class="sr-only">Entrée principale</label>
-        <textarea
-		  id="echo-input"
-		  name="q"
-		  rows="1"
-		  placeholder="Un souvenir, une pensée, une note…"
-		></textarea>
-        <button type="submit" class="primary-action">Commencer</button>
-      </form>
+      <main id="main" class="hero" role="main">
+        <h1>Que veux-tu transmettre aujourd’hui ?</h1>
 
-      <div class="modes" role="group" aria-label="Mode de saisie">
-        <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
-        <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
-        <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
-      </div>
-    </main>
+        <form class="input-shell" action="#" method="get" aria-label="Créer une entrée">
+          <label for="echo-input" class="sr-only">Entrée principale</label>
 
-    <script src="./app.js"></script>
+          <textarea
+            id="echo-input"
+            name="q"
+            rows="1"
+            placeholder="Un souvenir, une pensée, une note…"
+            autocomplete="off"
+            autocapitalize="sentences"
+            spellcheck="true"
+          ></textarea>
+
+          <button type="submit" class="primary-action">Commencer</button>
+        </form>
+
+        <div class="modes" role="group" aria-label="Mode de saisie">
+          <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
+          <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
+          <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
+        </div>
+
+        <noscript>
+          <p style="opacity: 0.75; margin-top: 1rem;">
+            JavaScript est désactivé. La timeline interactive ne sera pas disponible.
+          </p>
+        </noscript>
+      </main>
+    </div>
+
+    <script src="./app.js" defer></script>
   </body>
 </html>
