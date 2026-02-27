@@ -254,3 +254,47 @@ def test_text_content_length_validation(tmp_path, monkeypatch):
             "message": "text_content length exceeds MAX_TEXT_CHARS (5)",
         }
     }
+
+
+def test_get_entry_includes_assets(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    created_body, headers = _create_entry(client)
+
+    from app import db as app_db
+    from app.models import EntryAsset, User
+
+    with app_db.SessionLocal() as session:
+        user = session.query(User).filter(User.email == "admin@example.com").one()
+        session.add(
+            EntryAsset(
+                entry_id=created_body["id"],
+                user_id=user.id,
+                asset_type="image",
+                path="images/test.jpg",
+                mime="image/jpeg",
+                size=1234,
+                sha256="a" * 64,
+                width=320,
+                height=240,
+            )
+        )
+        session.commit()
+
+    response = client.get(f"{API_PREFIX}/entries/{created_body['id']}", headers=headers)
+    assert response.status_code == 200
+    assets = response.json()["assets"]
+    assert len(assets) == 1
+    assert assets[0]["asset_type"] == "image"
+    assert assets[0]["path"] == "images/test.jpg"
+    assert assets[0]["mime"] == "image/jpeg"
+    assert assets[0]["size"] == 1234
+    assert assets[0]["sha256"] == "a" * 64
+    assert assets[0]["width"] == 320
+    assert assets[0]["height"] == 240
+
+    listed = client.get(f"{API_PREFIX}/entries", headers=headers)
+    assert listed.status_code == 200
+    assert len(listed.json()["items"]) == 1
+    listed_assets = listed.json()["items"][0]["assets"]
+    assert len(listed_assets) == 1
+    assert listed_assets[0]["path"] == "images/test.jpg"

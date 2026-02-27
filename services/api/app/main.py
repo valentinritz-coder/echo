@@ -19,7 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from sqlalchemy import inspect, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.db import engine, get_db
 from app.middleware.request_id import RequestIdMiddleware, configure_json_logging
@@ -176,8 +176,11 @@ def _seed_admin_user(db: Session) -> None:
     db.commit()
 
 
-def _get_entry_or_404(db: Session, entry_id: str) -> Entry:
-    entry = db.get(Entry, entry_id)
+def _get_entry_or_404(db: Session, entry_id: str, *, load_assets: bool = False) -> Entry:
+    query = select(Entry).where(Entry.id == entry_id)
+    if load_assets:
+        query = query.options(selectinload(Entry.assets))
+    entry = db.execute(query).scalar_one_or_none()
     if entry is None:
         raise HTTPException(status_code=404, detail="Entry not found")
     return entry
@@ -305,6 +308,7 @@ def list_entries(
     entries = (
         db.execute(
             select(Entry)
+            .options(selectinload(Entry.assets))
             .where(Entry.user_id == current_user.id)
             .order_by(*order_by_map[sort])
             .offset(offset)
@@ -325,7 +329,7 @@ def get_entry(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Entry:
-    entry = _get_entry_or_404(db, entry_id)
+    entry = _get_entry_or_404(db, entry_id, load_assets=True)
     _ensure_owner(entry, current_user)
     return entry
 
