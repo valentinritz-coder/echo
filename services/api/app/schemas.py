@@ -31,6 +31,10 @@ class EntryOut(ORMBaseModel):
     created_at: datetime
 
 
+class EntryUpdateIn(ORMBaseModel):
+    question_id: int
+
+
 class EntriesListResponse(ORMBaseModel):
     items: list[EntryOut]
     next_offset: Optional[int] = None

@@ -97,7 +97,10 @@ def test_freeze_then_delete_conflict(tmp_path, monkeypatch):
 
     delete = client.delete(f"{API_PREFIX}/entries/{entry_id}", headers=headers)
     assert delete.status_code == 409
-    assert delete.json() == {"error": {"code": "frozen", "message": "Entry is frozen"}}
+    assert delete.json() == {
+        "error_code": "ENTRY_FROZEN_IMMUTABLE",
+        "detail": "Entry is frozen and cannot be modified",
+    }
 
 
 def test_freeze_idempotent_and_forbidden_for_non_owner(tmp_path, monkeypatch):
@@ -125,3 +128,81 @@ def test_freeze_idempotent_and_forbidden_for_non_owner(tmp_path, monkeypatch):
     assert freeze_other_user.json() == {
         "error": {"code": "forbidden", "message": "Not allowed"}
     }
+
+
+def test_mutations_blocked_when_frozen(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client, "user_a@example.com", "password-a")
+    entry_id = _create_entry(client, headers)
+
+    freeze = client.post(f"{API_PREFIX}/entries/{entry_id}/freeze", headers=headers)
+    assert freeze.status_code == 200
+
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()["id"]
+
+    update = client.patch(
+        f"{API_PREFIX}/entries/{entry_id}",
+        json={"question_id": question_id},
+        headers=headers,
+    )
+    assert update.status_code == 409
+    assert update.json()["error_code"] == "ENTRY_FROZEN_IMMUTABLE"
+
+    upload = client.post(
+        f"{API_PREFIX}/entries/{entry_id}/audio",
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+    assert upload.status_code == 409
+    assert upload.json()["error_code"] == "ENTRY_FROZEN_IMMUTABLE"
+
+    delete_audio = client.delete(f"{API_PREFIX}/entries/{entry_id}/audio", headers=headers)
+    assert delete_audio.status_code == 409
+    assert delete_audio.json()["error_code"] == "ENTRY_FROZEN_IMMUTABLE"
+
+
+def test_mutation_404_has_priority_over_frozen(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client, "user_a@example.com", "password-a")
+
+    update = client.patch(
+        f"{API_PREFIX}/entries/not-found",
+        json={"question_id": 1},
+        headers=headers,
+    )
+    assert update.status_code == 404
+
+    upload = client.post(
+        f"{API_PREFIX}/entries/not-found/audio",
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+    assert upload.status_code == 404
+
+    delete_audio = client.delete(f"{API_PREFIX}/entries/not-found/audio", headers=headers)
+    assert delete_audio.status_code == 404
+
+
+def test_mutation_403_remains_acl_for_non_owner_non_frozen(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers_a = _auth_headers(client, "user_a@example.com", "password-a")
+    headers_b = _auth_headers(client, "user_b@example.com", "password-b")
+    entry_id = _create_entry(client, headers_a)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers_b).json()["id"]
+
+    update = client.patch(
+        f"{API_PREFIX}/entries/{entry_id}",
+        json={"question_id": question_id},
+        headers=headers_b,
+    )
+    assert update.status_code == 403
+
+    upload = client.post(
+        f"{API_PREFIX}/entries/{entry_id}/audio",
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers_b,
+    )
+    assert upload.status_code == 403
+
+    delete_audio = client.delete(f"{API_PREFIX}/entries/{entry_id}/audio", headers=headers_b)
+    assert delete_audio.status_code == 403
