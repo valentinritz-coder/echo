@@ -58,27 +58,100 @@
       <main id="main" class="hero" role="main">
         <h1>Que veux-tu transmettre aujourd’hui ?</h1>
 
-        <form class="input-shell" action="#" method="get" aria-label="Créer une entrée">
-          <label for="echo-input" class="sr-only">Entrée principale</label>
+<form
+  class="composer-grid"
+  action="#"
+  method="post"
+  enctype="multipart/form-data"
+  aria-label="Créer une entrée"
+>
+  <!-- Ligne 1: TEXTE (full) -->
+  <section class="composer-text" aria-label="Texte">
+    <label for="echo-input" class="sr-only">Texte</label>
+    <textarea
+      id="echo-input"
+      name="text"
+      rows="4"
+      placeholder=""
+      autocomplete="off"
+      autocapitalize="sentences"
+      spellcheck="true"
+    ></textarea>
+  </section>
 
-          <textarea
-            id="echo-input"
-            name="q"
-            rows="1"
-            placeholder="Un souvenir, une pensée, une note…"
-            autocomplete="off"
-            autocapitalize="sentences"
-            spellcheck="true"
-          ></textarea>
+  <!-- Ligne 2: VOICE (gauche) -->
+  <section class="composer-voice" aria-label="Audio">
+    <div class="action-row">
+      <button
+        id="audio-btn"
+        class="icon-btn icon-btn--mic"
+        type="button"
+        aria-label="Enregistrer un audio"
+        aria-pressed="false"
+      >
+        <!-- mic icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.92V21h2v-3.08A7 7 0 0 0 19 11h-2Z"
+          />
+        </svg>
+      </button>
 
-          <button type="submit" class="primary-action">Commencer</button>
-        </form>
+      <audio id="audio-preview" controls hidden></audio>
+      <span id="audio-status" class="muted">Prêt.</span>
 
-        <div class="modes" role="group" aria-label="Mode de saisie">
-          <button type="button" class="mode-btn is-active" aria-pressed="true">Audio</button>
-          <button type="button" class="mode-btn" aria-pressed="false">Texte</button>
-          <button type="button" class="mode-btn" aria-pressed="false">Photo</button>
-        </div>
+      <button
+        id="audio-clear"
+        class="icon-btn icon-btn--ghost"
+        type="button"
+        aria-label="Supprimer l'enregistrement"
+        disabled
+      >
+        <!-- trash icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path
+            fill="currentColor"
+            d="M9 3h6l1 2h4v2H4V5h4l1-2Zm1 6h2v9h-2V9Zm4 0h2v9h-2V9ZM7 9h2v9H7V9Z"
+          />
+        </svg>
+      </button>
+    </div>
+  </section>
+
+  <!-- Ligne 2: IMAGES (droite) -->
+  <section class="composer-images" aria-label="Images">
+    <div class="action-row action-row--images">
+      <label class="icon-btn icon-btn--plus" for="images-input" aria-label="Ajouter des images">
+        <!-- plus icon -->
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path fill="currentColor" d="M11 5h2v14h-2V5Zm-6 6h14v2H5v-2Z" />
+        </svg>
+      </label>
+      <input id="images-input" name="images" type="file" accept="image/*" multiple hidden />
+
+      <div id="images-preview" class="images-grid" aria-live="polite"></div>
+    </div>
+  </section>
+
+  <!-- Ligne 3: SUBMIT (bas-droite) -->
+  <div class="composer-submit">
+    <button
+      type="submit"
+      class="icon-btn icon-btn--submit"
+      aria-label="Envoyer"
+      title="Envoyer"
+    >
+      <!-- arrow up icon -->
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <path
+          fill="currentColor"
+          d="M12 4l6.5 6.5-1.4 1.4L13 7.8V20h-2V7.8L6.9 11.9 5.5 10.5 12 4Z"
+        />
+      </svg>
+    </button>
+  </div>
+</form>
 
         <noscript>
           <p style="opacity: 0.75; margin-top: 1rem;">
