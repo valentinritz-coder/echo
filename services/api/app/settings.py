@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     data_dir: Path = Path("/app/data")
     max_upload_size_mb: int = 25
+    # Maximum allowed size for optional entry text content.
+    max_text_chars: int = 10_000
 
     jwt_secret_key: str = ""
     jwt_refresh_secret_key: str = ""

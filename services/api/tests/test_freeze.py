@@ -144,7 +144,7 @@ def test_mutations_blocked_when_frozen(tmp_path, monkeypatch):
 
     update = client.patch(
         f"{API_PREFIX}/entries/{entry_id}",
-        json={"question_id": question_id},
+        json={"question_id": question_id, "text_content": "frozen update"},
         headers=headers,
     )
     assert update.status_code == 409
