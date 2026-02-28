@@ -302,8 +302,10 @@ E2E_NO_BUILD=1 python -m pytest -q services/api/tests_e2e
 PowerShell:
 
 ```powershell
-$env:E2E_NO_BUILD="1"
-python -m pytest -q services/api/tests_e2e
+$env:PYTHONUTF8="1"
+$env:PYTHONIOENCODING="utf-8"
+$env:RUN_E2E="1"
+python -m pytest services/api/tests_e2e -q -vv
 ```
 
 CMD:
