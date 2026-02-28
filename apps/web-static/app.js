@@ -1,111 +1,164 @@
-// -----------------------------
-// Textarea autosize
-// -----------------------------
+const API_BASE = localStorage.getItem("echo_api_base") || "http://localhost:8000";
+const ACCESS_TOKEN_KEY = "echo_access_token";
+const MAX_IMAGES_PER_ENTRY = 8;
+
 const textarea = document.getElementById("echo-input");
+const sidebarList = document.getElementById("sidebar-list");
+const loadMoreBtn = document.getElementById("load-more-btn");
+const composerForm = document.getElementById("composer-form");
+const submitEntryBtn = document.getElementById("submit-entry-btn");
+const composerHint = document.getElementById("composer-hint");
+
+const imagesInput = document.getElementById("images-input");
+const imagesPreview = document.getElementById("images-preview");
+
+const micBtn = document.getElementById("audio-btn");
+const audioPreview = document.getElementById("audio-preview");
+const audioStatus = document.getElementById("audio-status");
+const audioClear = document.getElementById("audio-clear");
+
+const authToggle = document.getElementById("auth-toggle");
+const loginModal = document.getElementById("login-modal");
+const loginForm = document.getElementById("login-form");
+const loginEmail = document.getElementById("login-email");
+const loginPassword = document.getElementById("login-password");
+const loginCancel = document.getElementById("login-cancel");
+const toast = document.getElementById("toast");
+
+const state = {
+  entries: [],
+  nextOffset: null,
+  selectedImages: [],
+  currentQuestionId: null,
+  mediaRecorder: null,
+  recordedAudioBlob: null,
+  recordedMimeType: "audio/webm",
+  audioBlobUrl: null,
+  isSubmitting: false,
+};
+
+function getAccessToken() {
+  return localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+function setTokens(payload) {
+  localStorage.setItem(ACCESS_TOKEN_KEY, payload.access_token);
+}
+
+function clearTokens() {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+}
+
+function showToast(message) {
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add("is-visible");
+  window.clearTimeout(showToast._timer);
+  showToast._timer = window.setTimeout(() => toast.classList.remove("is-visible"), 2500);
+}
+
+function revokeEntryObjectUrls(entries) {
+  for (const entry of entries || []) {
+    if (entry._audioObjectUrl && entry._audioObjectUrlCreated) URL.revokeObjectURL(entry._audioObjectUrl);
+    for (let i = 0; i < (entry._assetObjectUrls || []).length; i += 1) {
+      if (entry._assetObjectUrlsCreated?.[i] && entry._assetObjectUrls[i]) {
+        URL.revokeObjectURL(entry._assetObjectUrls[i]);
+      }
+    }
+  }
+}
+
+function softLogout(message) {
+  clearTokens();
+  revokeEntryObjectUrls(state.entries);
+  state.entries = [];
+  state.nextOffset = null;
+  renderSidebarList();
+  updateAuthUi();
+  if (message) showToast(message);
+}
+
+function authHeaders(headers = {}) {
+  const token = getAccessToken();
+  const next = { ...headers };
+  if (token) next.Authorization = `Bearer ${token}`;
+  return next;
+}
+
+function resolveApiPath(path) {
+  if (typeof path !== "string") throw new Error("API path must be a string");
+  if (path.startsWith("http://") || path.startsWith("https://")) return path;
+  if (path.startsWith("/api/")) return `${API_BASE}${path}`;
+  return `${API_BASE}/api/v1${path}`;
+}
+
+function formatApiErrorDetail(detail) {
+  if (Array.isArray(detail)) {
+    const messages = detail.map((item) => {
+      const locParts = Array.isArray(item?.loc) ? item.loc.filter((part) => part !== "body" && part !== "query") : [];
+      const loc = locParts.length ? locParts.join(".") : "field";
+      const msg = item?.msg || "invalid value";
+      return `${loc}: ${msg}`;
+    });
+    return messages.join(" | ");
+  }
+  if (detail && typeof detail === "object") {
+    if (typeof detail.message === "string") return detail.message;
+    if (typeof detail.detail === "string") return detail.detail;
+  }
+  if (typeof detail === "string") return detail;
+  return null;
+}
+
+async function apiFetch(path, options = {}) {
+  const response = await fetch(resolveApiPath(path), {
+    ...options,
+    headers: authHeaders(options.headers || {}),
+  });
+
+  if (response.status === 401) {
+    softLogout("Session expirée. Merci de vous reconnecter.");
+    throw new Error("Session expirée. Merci de vous reconnecter.");
+  }
+
+  if (response.status === 403) {
+    throw new Error("Accès refusé");
+  }
+
+  if (!response.ok) {
+    let errorMessage = `HTTP ${response.status}`;
+    try {
+      const payload = await response.json();
+      const formattedDetail = formatApiErrorDetail(payload?.detail);
+      errorMessage = formattedDetail || payload?.error?.message || errorMessage;
+    } catch {
+      // ignore
+    }
+    throw new Error(errorMessage);
+  }
+
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) return response.json();
+  return response;
+}
+
+async function apiFetchBlob(path) {
+  const response = await apiFetch(path);
+  if (!(response instanceof Response)) throw new Error("Blob response expected");
+  return response.blob();
+}
 
 function autosize(el) {
   if (!el) return;
-
   el.style.height = "auto";
-
-  const styles = window.getComputedStyle(el);
-  const maxH = Number.parseFloat(styles.maxHeight) || Infinity;
-
+  const maxH = Number.parseFloat(window.getComputedStyle(el).maxHeight) || Infinity;
   const nextH = Math.min(el.scrollHeight, maxH);
   el.style.height = `${nextH}px`;
   el.style.overflowY = el.scrollHeight > maxH ? "auto" : "hidden";
 }
 
-if (textarea) {
-  autosize(textarea);
-  textarea.addEventListener("input", () => autosize(textarea));
-  window.addEventListener("resize", () => autosize(textarea));
-}
-
-// -----------------------------
-// Fake data (50 memories)
-// -----------------------------
-const memories = [
-  { id: 1, date: "1950-01-14", text: "Une lettre pliée en quatre, retrouvée dans un vieux livre.", audio: false, image: true },
-  { id: 2, date: "1951-07-03", text: "Premier jour de travail. Impression de porter un costume trop grand.", audio: true, image: false },
-  { id: 3, date: "1952-11-26", text: "Un hiver sec. Les pas craquent sur le givre.", audio: false, image: false },
-  { id: 4, date: "1954-05-19", text: "Une photo floue mais on reconnaît les sourires.", audio: false, image: true },
-  { id: 5, date: "1956-09-08", text: "On a parlé de partir. On est restés.", audio: true, image: false },
-  { id: 6, date: "1958-03-27", text: "Une chanson à la radio. Toujours la même émotion.", audio: true, image: false },
-
-  { id: 7, date: "1960-06-12", text: "Un carnet neuf. La promesse de mieux faire.", audio: false, image: true },
-  { id: 8, date: "1961-10-02", text: "Dimanche au soleil. Rien d’urgent, et ça fait du bien.", audio: false, image: false },
-  { id: 9, date: "1963-02-15", text: "Un silence lourd, puis une décision simple.", audio: true, image: false },
-  { id: 10, date: "1964-08-21", text: "Une route poussiéreuse. On rigole pour rien.", audio: false, image: true },
-  { id: 11, date: "1966-12-05", text: "On s’est promis de se revoir vite. Mensonge innocent.", audio: false, image: false },
-  { id: 12, date: "1969-04-30", text: "Un anniversaire sans gâteau. Mais une vraie paix.", audio: true, image: true },
-
-  { id: 13, date: "1970-01-09", text: "Nouveau départ. Même ville, autre regard.", audio: false, image: false },
-  { id: 14, date: "1972-07-18", text: "Le goût des tomates du jardin. Impossible à reproduire.", audio: false, image: true },
-  { id: 15, date: "1973-10-11", text: "Une dispute bête, et puis on s’est excusés.", audio: true, image: false },
-  { id: 16, date: "1975-03-26", text: "Un train en retard. Ça a changé la journée, et la suite.", audio: false, image: false },
-  { id: 17, date: "1977-09-02", text: "Une photo de groupe. Certains noms s’effacent.", audio: false, image: true },
-  { id: 18, date: "1979-12-23", text: "Veille de fête. On fait semblant d’aller bien. On y arrive.", audio: true, image: false },
-
-  { id: 19, date: "1980-05-06", text: "Une carte postale: trois lignes, et ça suffit.", audio: false, image: true },
-  { id: 20, date: "1981-11-28", text: "Un pull qui gratte, mais c’était un cadeau sincère.", audio: false, image: false },
-  { id: 21, date: "1983-02-19", text: "Une cassette audio. La voix a vieilli, pas l’intention.", audio: true, image: false },
-  { id: 22, date: "1984-08-14", text: "Vacances simples. Une baignade froide, un rire net.", audio: false, image: true },
-  { id: 23, date: "1986-10-30", text: "On apprend une nouvelle et tout devient plus petit.", audio: true, image: false },
-  { id: 24, date: "1989-04-01", text: "Poisson d’avril. On s’est fait avoir comme des débutants.", audio: false, image: false },
-
-  { id: 25, date: "1990-06-25", text: "Un objet perdu, retrouvé au bon moment.", audio: false, image: true },
-  { id: 26, date: "1992-01-13", text: "Une page tournée. Pas proprement, mais définitivement.", audio: true, image: false },
-  { id: 27, date: "1993-09-07", text: "On a repeint une pièce. L’odeur est restée des semaines.", audio: false, image: false },
-  { id: 28, date: "1995-12-09", text: "Soir d’hiver, fenêtre embuée, tête pleine.", audio: true, image: false },
-  { id: 29, date: "1998-06-12", text: "Un souvenir ancien, juste pour tester le drill-down.", audio: false, image: false },
-  { id: 30, date: "1999-11-20", text: "Fin de décennie. On fait semblant de comprendre l’avenir.", audio: false, image: true },
-
-  { id: 31, date: "2001-03-05", text: "Premier email important. On imprime quand même, par réflexe.", audio: false, image: false },
-  { id: 32, date: "2003-07-22", text: "Un été trop chaud. L’air vibrait au-dessus de la route.", audio: false, image: true },
-  { id: 33, date: "2004-10-16", text: "Une photo prise trop vite, mais parfaite.", audio: false, image: true },
-  { id: 34, date: "2006-02-09", text: "On s’est parlé tard. Les mots étaient plus vrais à minuit.", audio: true, image: false },
-  { id: 35, date: "2008-09-30", text: "Un grand changement. Sur le moment, ça ressemble à une panne.", audio: true, image: false },
-  { id: 36, date: "2009-12-31", text: "Minuit. On se souhaite le mieux, sans savoir comment.", audio: true, image: true },
-
-  { id: 37, date: "2010-04-17", text: "Une promenade sans but. La meilleure idée de la semaine.", audio: false, image: false },
-  { id: 38, date: "2012-06-29", text: "Un message simple: 't’es là ?' et tout change.", audio: true, image: false },
-  { id: 39, date: "2013-11-08", text: "On a appris à dire non. Lentement, mais enfin.", audio: false, image: false },
-  { id: 40, date: "2015-01-23", text: "Une photo de neige. Le monde avait l’air plus silencieux.", audio: false, image: true },
-  { id: 41, date: "2017-08-12", text: "Une soirée dehors. On parle comme si on avait le temps.", audio: true, image: false },
-  { id: 42, date: "2019-10-05", text: "Une vieille chanson ressort. Elle sait encore viser juste.", audio: true, image: false },
-
-  { id: 43, date: "2020-03-19", text: "Le temps s’est étiré. On a dû inventer un rythme.", audio: false, image: false },
-  { id: 44, date: "2021-05-27", text: "Une photo de famille. On regarde plus les détails que les visages.", audio: false, image: true },
-  { id: 45, date: "2022-09-14", text: "Une note vocale envoyée sans réfléchir. C’était la bonne.", audio: true, image: false },
-  { id: 46, date: "2023-12-02", text: "Une fin d’année dense. Pas mauvaise. Dense.", audio: false, image: false },
-  { id: 47, date: "2024-02-18", text: "Un repas simple. Le genre qui remet les choses en place.", audio: false, image: true },
-  { id: 48, date: "2025-07-09", text: "Une décision prise sans drame. Juste une évidence.", audio: true, image: false },
-
-  { id: 49, date: "2026-01-10", text: "J’ai retrouvé une photo de famille ce matin.", audio: true, image: true },
-  { id: 50, date: "2026-02-27", text: "Aujourd’hui, j’ai envie de laisser une trace claire.", audio: true, image: true },
-];
-
-// -----------------------------
-// Sidebar drill-down timeline
-// -----------------------------
-const sidebarList = document.getElementById("sidebar-list");
-
-// state: [{ level, key }]
-const navStack = [];
-
-// utils
-function parseYear(dateStr) {
-  const y = Number(String(dateStr || "").slice(0, 4));
-  return Number.isFinite(y) ? y : null;
-}
-
-function rangeLabel(start, end) {
-  return `${start} – ${end}`;
-}
-
 function escapeHtml(str) {
-  return String(str)
+  return String(str || "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
@@ -113,369 +166,105 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
-function dotSummary(m) {
-  const dots = [];
-  if (m.text && m.text.trim()) dots.push("•");
-  if (m.audio) dots.push("◍");
-  if (m.image) dots.push("◼︎");
-  return dots.join(" ");
+function formatDate(isoDate) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) return isoDate;
+  return new Intl.DateTimeFormat("fr-FR", { dateStyle: "medium", timeStyle: "short" }).format(date);
 }
 
-// grouping
-function groupByCentury(items, nowYear) {
-  const map = new Map();
-
-  for (const m of items) {
-    const y = parseYear(m.date);
-    if (y == null) continue;
-
-    const start = Math.floor(y / 100) * 100;
-    const key = start;
-
-    let end = start + 99;
-    if (start <= nowYear && nowYear <= end) end = nowYear; // cut current century
-
-    if (!map.has(key)) map.set(key, { start, end, items: [] });
-    map.get(key).items.push(m);
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.start - a.start);
+function setComposerEnabled(enabled) {
+  composerForm?.classList.toggle("is-disabled", !enabled);
+  if (textarea) textarea.disabled = !enabled;
+  if (micBtn) micBtn.disabled = !enabled;
+  if (imagesInput) imagesInput.disabled = !enabled;
+  if (submitEntryBtn) submitEntryBtn.disabled = !enabled;
+  if (audioClear) audioClear.disabled = !enabled && !state.recordedAudioBlob;
 }
 
-function groupByDecade(items, centuryStart) {
-  const map = new Map();
-
-  for (const m of items) {
-    const y = parseYear(m.date);
-    if (y == null) continue;
-    if (y < centuryStart || y > centuryStart + 99) continue;
-
-    const start = Math.floor(y / 10) * 10;
-    const key = start;
-
-    if (!map.has(key)) map.set(key, { start, end: start + 9, items: [] });
-    map.get(key).items.push(m);
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.start - a.start);
+function updateAuthUi() {
+  const isLoggedIn = Boolean(getAccessToken());
+  document.body.classList.toggle("is-logged-in", isLoggedIn);
+  if (authToggle) authToggle.textContent = isLoggedIn ? "Log out" : "Log in";
+  setComposerEnabled(isLoggedIn && !state.isSubmitting);
+  if (composerHint) composerHint.textContent = isLoggedIn ? "" : "Log in requis pour enregistrer un souvenir.";
 }
 
-function groupByYear(items, decadeStart) {
-  const map = new Map();
-
-  for (const m of items) {
-    const y = parseYear(m.date);
-    if (y == null) continue;
-    if (y < decadeStart || y > decadeStart + 9) continue;
-
-    if (!map.has(y)) map.set(y, { year: y, items: [] });
-    map.get(y).items.push(m);
-  }
-
-  return Array.from(map.values()).sort((a, b) => b.year - a.year);
-}
-
-// DOM helpers
-function addListItem({ title, subtitle = "", dots = null, className = "", onClick }) {
-  const li = document.createElement("li");
-  li.className = `sidebar-item ${className}`.trim();
-
-  li.innerHTML = `
-    <a class="sidebar-link" href="#">
-      <div class="sidebar-row">
-        <span class="sidebar-date">${escapeHtml(title)}</span>
-        ${dots ? `<span class="sidebar-dots" aria-hidden="true">${escapeHtml(dots)}</span>` : ""}
-      </div>
-      ${subtitle ? `<div class="sidebar-text">${escapeHtml(subtitle)}</div>` : ""}
-    </a>
-  `;
-
-  li.querySelector("a").addEventListener("click", (e) => {
-    e.preventDefault();
-    onClick?.();
+async function login(email, password) {
+  const payload = await apiFetch("/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
-
-  sidebarList.appendChild(li);
+  setTokens(payload);
 }
 
-function addBackItem() {
-  addListItem({
-    className: "is-back",
-    title: `
-      <span class="sidebar-back-inner">
-        <span class="sidebar-back-arrow" aria-hidden="true">
-          <svg width="10" viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M0.245636 8.59302C-0.0818787 8.2655 -0.0818787 7.7345 0.245636 7.40698L4.43892 3.2137C4.76643 2.88619 5.29744 2.88619 5.62495 3.2137C5.95247 3.54122 5.95247 4.07223 5.62495 4.39974L2.86335 7.16134H10.9025C11.3657 7.16134 11.7412 7.53682 11.7412 8C11.7412 8.46318 11.3657 8.83866 10.9025 8.83866H2.86335L5.62495 11.6003C5.95247 11.9278 5.95247 12.4588 5.62495 12.7863C5.29744 13.1138 4.76643 13.1138 4.43892 12.7863L0.245636 8.59302Z" fill="currentColor"></path>
-          </svg>
-        </span>
-      </span>
-    `.trim(),
-    // on injecte déjà du HTML ci-dessus: pas d'escape ici
-    // donc on bypass en passant directement dans innerHTML ci-dessous
-    onClick: () => {
-      navStack.pop();
-      renderSidebarList();
-    },
-  });
+function openLoginModal() {
+  loginModal?.showModal?.();
+  loginEmail?.focus();
 }
 
-// rendu: on veut éviter d’escape le back (il contient du SVG)
-// donc on le construit à la main ici
-function renderBackRow() {
-  const li = document.createElement("li");
-  li.className = "sidebar-item is-back";
-  li.innerHTML = `
-    <a class="sidebar-link sidebar-back-link" href="#" aria-label="Retour">
-      <div class="sidebar-row" style="margin-bottom:0">
-        <span class="sidebar-back-inner">
-          <span class="sidebar-back-arrow" aria-hidden="true">
-            <svg width="10" viewBox="0 0 12 16" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M0.245636 8.59302C-0.0818787 8.2655 -0.0818787 7.7345 0.245636 7.40698L4.43892 3.2137C4.76643 2.88619 5.29744 2.88619 5.62495 3.2137C5.95247 3.54122 5.95247 4.07223 5.62495 4.39974L2.86335 7.16134H10.9025C11.3657 7.16134 11.7412 7.53682 11.7412 8C11.7412 8.46318 11.3657 8.83866 10.9025 8.83866H2.86335L5.62495 11.6003C5.95247 11.9278 5.95247 12.4588 5.62495 12.7863C5.29744 13.1138 4.76643 13.1138 4.43892 12.7863L0.245636 8.59302Z" fill="currentColor"></path>
-            </svg>
-          </span>
-        </span>
-      </div>
-    </a>
-  `;
-  li.querySelector("a").addEventListener("click", (e) => {
-    e.preventDefault();
-    navStack.pop();
-    renderSidebarList();
-  });
-  sidebarList.appendChild(li);
+function closeLoginModal() {
+  loginModal?.close?.();
 }
 
-function renderSidebarList() {
-  if (!sidebarList) return;
-
-  const all = (window.memories || memories || []).slice();
-  const nowYear = new Date().getFullYear();
-
-  sidebarList.innerHTML = "";
-
-  // back full-width (if in sub-level)
-  if (navStack.length > 0) renderBackRow();
-
-  // level 0: centuries
-  if (navStack.length === 0) {
-    const centuries = groupByCentury(all, nowYear);
-    for (const c of centuries) {
-      addListItem({
-        title: rangeLabel(c.start, c.end),
-        subtitle: `${c.items.length} souvenirs`,
-        dots: null,
-        onClick: () => {
-          navStack.push({ level: "century", key: c.start });
-          renderSidebarList();
-        },
-      });
-    }
-    return;
+function pickRecorderMimeType() {
+  const preferred = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
+  for (const candidate of preferred) {
+    if (window.MediaRecorder?.isTypeSupported?.(candidate)) return candidate;
   }
-
-  const top = navStack[navStack.length - 1];
-
-  // level 1: decades
-  if (top.level === "century") {
-    const decades = groupByDecade(all, top.key);
-    for (const d of decades) {
-      addListItem({
-        title: rangeLabel(d.start, d.end),
-        subtitle: `${d.items.length} souvenirs`,
-        dots: null,
-        onClick: () => {
-          navStack.push({ level: "decade", key: d.start });
-          renderSidebarList();
-        },
-      });
-    }
-    return;
-  }
-
-  // level 2: years
-  if (top.level === "decade") {
-    const years = groupByYear(all, top.key);
-    for (const y of years) {
-      addListItem({
-        title: String(y.year),
-        subtitle: `${y.items.length} souvenirs`,
-        dots: null,
-        onClick: () => {
-          navStack.push({ level: "year", key: y.year });
-          renderSidebarList();
-        },
-      });
-    }
-    return;
-  }
-
-  // level 3: items
-  if (top.level === "year") {
-    const items = all
-      .filter((m) => parseYear(m.date) === top.key)
-      .sort((a, b) => String(b.date).localeCompare(String(a.date)));
-
-    for (const m of items) {
-      addListItem({
-        title: m.date,
-        subtitle: m.text || "",
-        dots: dotSummary(m),
-        onClick: () => {
-          // TODO: sélectionner et afficher à droite
-        },
-      });
-    }
-  }
+  return "";
 }
-
-// init
-renderSidebarList();
-
-// =============================
-// Composer: rotating placeholder
-// =============================
-const ta = document.getElementById("echo-input");
-
-const ideaPlaceholders = [
-  "Une phrase que tu veux qu’on n’oublie pas…",
-  "Un détail minuscule, mais important…",
-  "Un moment simple qui t’a fait du bien…",
-  "Quelque chose que tu n’as jamais dit…",
-  "Une photo à expliquer dans 20 ans…",
-  "Un son, une voix, un endroit…",
-  "Une décision que tu assumes enfin…",
-];
-
-let ideaIdx = 0;
-let ideaTimer = null;
-
-function setIdeaPlaceholder(force = false) {
-  if (!ta) return;
-  if (!force && ta.value && ta.value.trim()) return; // ne pas gêner si l'utilisateur écrit
-  ta.placeholder = ideaPlaceholders[ideaIdx % ideaPlaceholders.length];
-  ideaIdx++;
-}
-
-function startIdeaRotation() {
-  if (!ta) return;
-  setIdeaPlaceholder(true);
-  ideaTimer = window.setInterval(() => setIdeaPlaceholder(false), 5000);
-}
-
-function stopIdeaRotation() {
-  if (ideaTimer) window.clearInterval(ideaTimer);
-  ideaTimer = null;
-}
-
-if (ta) {
-  startIdeaRotation();
-  ta.addEventListener("focus", () => stopIdeaRotation());
-  ta.addEventListener("blur", () => startIdeaRotation());
-  ta.addEventListener("input", () => {
-    // si l’utilisateur efface tout, on remet une idée
-    if (!ta.value.trim()) setIdeaPlaceholder(true);
-  });
-}
-
-// =============================
-// Images: preview thumbs
-// =============================
-const imagesInput = document.getElementById("images-input");
-const imagesPreview = document.getElementById("images-preview");
-
-function clearImagesPreview() {
-  if (!imagesPreview) return;
-  imagesPreview.innerHTML = "";
-}
-
-function addThumb(file) {
-  const wrap = document.createElement("div");
-  wrap.className = "thumb";
-  const img = document.createElement("img");
-  img.alt = "";
-  wrap.appendChild(img);
-
-  const url = URL.createObjectURL(file);
-  img.src = url;
-  img.onload = () => URL.revokeObjectURL(url);
-
-  imagesPreview.appendChild(wrap);
-}
-
-if (imagesInput && imagesPreview) {
-  imagesInput.addEventListener("change", () => {
-    clearImagesPreview();
-    const files = Array.from(imagesInput.files || []);
-    files.slice(0, 9).forEach(addThumb); // limite visuelle
-  });
-}
-
-// =============================
-// Audio: single mic button state
-// (API MediaRecorder - minimal demo)
-// =============================
-const micBtn = document.getElementById("audio-btn");
-const audioPreview = document.getElementById("audio-preview");
-const audioStatus = document.getElementById("audio-status");
-const audioClear = document.getElementById("audio-clear");
-
-let mediaRecorder = null;
-let audioChunks = [];
-let audioBlobUrl = null;
 
 function setAudioUi({ recording = false, hasAudio = false, status = "Prêt." }) {
-  if (micBtn) {
-    micBtn.classList.toggle("is-recording", recording);
-    micBtn.classList.toggle("has-audio", hasAudio);
-    micBtn.setAttribute("aria-pressed", recording ? "true" : "false");
-  }
+  micBtn?.classList.toggle("is-recording", recording);
+  micBtn?.classList.toggle("has-audio", hasAudio);
+  micBtn?.setAttribute("aria-pressed", recording ? "true" : "false");
   if (audioStatus) audioStatus.textContent = status;
   if (audioClear) audioClear.disabled = !hasAudio && !recording;
 }
 
 async function startRecording() {
-  if (!navigator.mediaDevices?.getUserMedia) {
-    setAudioUi({ status: "Micro non supporté.", recording: false, hasAudio: false });
+  if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
+    setAudioUi({ status: "Micro non supporté." });
     return;
   }
+  if (state.recordedAudioBlob) clearRecording();
 
   const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  mediaRecorder = new MediaRecorder(stream);
-  audioChunks = [];
+  const mimeType = pickRecorderMimeType();
+  state.recordedMimeType = mimeType || "audio/webm";
+  state.mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+  const chunks = [];
 
-  mediaRecorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) audioChunks.push(e.data);
+  state.mediaRecorder.ondataavailable = (event) => {
+    if (event.data && event.data.size > 0) chunks.push(event.data);
   };
 
-  mediaRecorder.onstop = () => {
-    stream.getTracks().forEach((t) => t.stop());
-    const blob = new Blob(audioChunks, { type: mediaRecorder.mimeType || "audio/webm" });
-
-    if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-    audioBlobUrl = URL.createObjectURL(blob);
-
+  state.mediaRecorder.onstop = () => {
+    stream.getTracks().forEach((track) => track.stop());
+    state.recordedAudioBlob = new Blob(chunks, { type: state.mediaRecorder?.mimeType || state.recordedMimeType });
+    if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
+    state.audioBlobUrl = URL.createObjectURL(state.recordedAudioBlob);
     if (audioPreview) {
       audioPreview.hidden = false;
-      audioPreview.src = audioBlobUrl;
+      audioPreview.src = state.audioBlobUrl;
     }
     setAudioUi({ recording: false, hasAudio: true, status: "Audio prêt." });
   };
 
-  mediaRecorder.start();
-  setAudioUi({ recording: true, hasAudio: false, status: "Enregistrement…" });
+  state.mediaRecorder.start();
+  setAudioUi({ recording: true, status: "Enregistrement…" });
 }
 
 function stopRecording() {
-  if (!mediaRecorder) return;
-  if (mediaRecorder.state === "recording") mediaRecorder.stop();
+  if (state.mediaRecorder?.state === "recording") state.mediaRecorder.stop();
 }
 
 function clearRecording() {
   stopRecording();
-  audioChunks = [];
-  if (audioBlobUrl) URL.revokeObjectURL(audioBlobUrl);
-  audioBlobUrl = null;
-
+  state.recordedAudioBlob = null;
+  if (state.audioBlobUrl) URL.revokeObjectURL(state.audioBlobUrl);
+  state.audioBlobUrl = null;
   if (audioPreview) {
     audioPreview.hidden = true;
     audioPreview.removeAttribute("src");
@@ -484,22 +273,268 @@ function clearRecording() {
   setAudioUi({ recording: false, hasAudio: false, status: "Prêt." });
 }
 
-if (micBtn) {
-  micBtn.addEventListener("click", async () => {
-    if (mediaRecorder && mediaRecorder.state === "recording") {
-      stopRecording();
-    } else {
-      try {
-        await startRecording();
-      } catch {
-        setAudioUi({ recording: false, hasAudio: false, status: "Permission micro refusée." });
-      }
+function clearImagesPreview() {
+  if (!imagesPreview) return;
+  imagesPreview.innerHTML = "";
+}
+
+function addThumb(file) {
+  if (!imagesPreview) return;
+  const wrap = document.createElement("div");
+  wrap.className = "thumb";
+  const img = document.createElement("img");
+  img.alt = "";
+  wrap.appendChild(img);
+  const url = URL.createObjectURL(file);
+  img.src = url;
+  img.onload = () => URL.revokeObjectURL(url);
+  imagesPreview.appendChild(wrap);
+}
+
+async function getQuestionId() {
+  if (state.currentQuestionId) return state.currentQuestionId;
+  const question = await apiFetch("/questions/today");
+  state.currentQuestionId = question.id;
+  return question.id;
+}
+
+async function uploadImages(entryId, files) {
+  for (let i = 0; i < files.length; i += 1) {
+    const formData = new FormData();
+    formData.append("file", files[i], files[i].name);
+    await apiFetch(`/entries/${entryId}/assets`, { method: "POST", body: formData });
+    showToast(`Upload image ${i + 1}/${files.length}`);
+  }
+}
+
+async function createEntry() {
+  const text = textarea?.value.trim() || "";
+  const hasAudio = Boolean(state.recordedAudioBlob);
+  const hasImages = state.selectedImages.length > 0;
+
+  if (!text && !hasAudio) {
+    if (composerHint) composerHint.textContent = hasImages
+      ? "Ajoute du texte ou un audio avant d'uploader des images."
+      : "Ajoute du texte ou un audio.";
+    return;
+  }
+
+  state.isSubmitting = true;
+  updateAuthUi();
+
+  try {
+    const questionId = await getQuestionId();
+    const formData = new FormData();
+    formData.append("question_id", String(questionId));
+    if (text) formData.append("text", text);
+    if (hasAudio) {
+      const extension = state.recordedMimeType.includes("ogg") ? "ogg" : "webm";
+      formData.append("audio_file", state.recordedAudioBlob, `recording.${extension}`);
+    }
+
+    const entry = await apiFetch("/entries", { method: "POST", body: formData });
+    if (hasImages) await uploadImages(entry.id, state.selectedImages);
+
+    if (textarea) {
+      textarea.value = "";
+      autosize(textarea);
+    }
+    clearRecording();
+    state.selectedImages = [];
+    if (imagesInput) imagesInput.value = "";
+    clearImagesPreview();
+    if (composerHint) composerHint.textContent = "";
+
+    showToast("Souvenir enregistré.");
+    await refreshTimeline();
+  } catch (error) {
+    showToast(`Erreur: ${error.message}`);
+  } finally {
+    state.isSubmitting = false;
+    updateAuthUi();
+  }
+}
+
+function dotSummary(entry) {
+  const dots = [];
+  if (entry.text_content) dots.push("•");
+  if (entry.audio_url) dots.push("◍");
+  if (entry.assets?.length) dots.push("◼︎");
+  return dots.join(" ");
+}
+
+async function hydrateEntryMedia(entry) {
+  const hydrated = {
+    ...entry,
+    _audioObjectUrl: null,
+    _audioObjectUrlCreated: false,
+    _assetObjectUrls: [],
+    _assetObjectUrlsCreated: [],
+  };
+
+  if (entry.audio_url) {
+    try {
+      const blob = await apiFetchBlob(entry.audio_url);
+      hydrated._audioObjectUrl = URL.createObjectURL(blob);
+      hydrated._audioObjectUrlCreated = true;
+    } catch {
+      hydrated._audioObjectUrl = entry.audio_url;
+      hydrated._audioObjectUrlCreated = false;
+    }
+  }
+
+  for (const asset of entry.assets || []) {
+    try {
+      const blob = await apiFetchBlob(asset.download_url);
+      hydrated._assetObjectUrls.push(URL.createObjectURL(blob));
+      hydrated._assetObjectUrlsCreated.push(true);
+    } catch {
+      hydrated._assetObjectUrls.push(asset.download_url);
+      hydrated._assetObjectUrlsCreated.push(false);
+    }
+  }
+
+  return hydrated;
+}
+
+function renderEntryCard(entry) {
+  if (!sidebarList) return;
+  const li = document.createElement("li");
+  li.className = "sidebar-item";
+
+  const imageHtml = (entry._assetObjectUrls || [])
+    .map((url) => `<img src="${escapeHtml(url)}" alt="asset" loading="lazy" class="sidebar-asset" />`)
+    .join("");
+
+  li.innerHTML = `
+    <article class="sidebar-link sidebar-link--entry">
+      <div class="sidebar-row">
+        <span class="sidebar-date">${escapeHtml(formatDate(entry.created_at))}</span>
+        <span class="sidebar-dots">${escapeHtml(dotSummary(entry))}</span>
+      </div>
+      ${entry.text_content ? `<div class="sidebar-text">${escapeHtml(entry.text_content)}</div>` : ""}
+      ${entry._audioObjectUrl ? `<audio controls preload="none" src="${escapeHtml(entry._audioObjectUrl)}"></audio>` : ""}
+      ${imageHtml ? `<div class="sidebar-assets">${imageHtml}</div>` : ""}
+    </article>
+  `;
+  sidebarList.appendChild(li);
+}
+
+function renderSidebarList() {
+  if (!sidebarList) return;
+  sidebarList.innerHTML = "";
+  state.entries.forEach(renderEntryCard);
+}
+
+async function loadEntries(offset = 0) {
+  const payload = await apiFetch(`/entries?limit=50&offset=${offset}&sort=created_at_desc`);
+  const hydratedItems = await Promise.all(payload.items.map(hydrateEntryMedia));
+  state.nextOffset = payload.next_offset;
+
+  if (offset === 0) {
+    revokeEntryObjectUrls(state.entries);
+    state.entries = hydratedItems;
+  } else {
+    state.entries = state.entries.concat(hydratedItems);
+  }
+
+  renderSidebarList();
+  if (loadMoreBtn) loadMoreBtn.hidden = state.nextOffset === null || state.nextOffset === undefined;
+}
+
+async function refreshTimeline() {
+  if (!getAccessToken()) {
+    revokeEntryObjectUrls(state.entries);
+    state.entries = [];
+    state.nextOffset = null;
+    renderSidebarList();
+    if (loadMoreBtn) loadMoreBtn.hidden = true;
+    return;
+  }
+
+  try {
+    await loadEntries(0);
+  } catch (error) {
+    showToast(`Timeline indisponible: ${error.message}`);
+  }
+}
+
+function bindEvents() {
+  if (textarea) {
+    autosize(textarea);
+    textarea.addEventListener("input", () => autosize(textarea));
+    window.addEventListener("resize", () => autosize(textarea));
+  }
+
+  authToggle?.addEventListener("click", async () => {
+    if (getAccessToken()) {
+      softLogout("Déconnecté.");
+      return;
+    }
+    openLoginModal();
+  });
+
+  loginCancel?.addEventListener("click", closeLoginModal);
+  loginModal?.addEventListener("click", (event) => {
+    if (event.target === loginModal) closeLoginModal();
+  });
+  loginModal?.addEventListener("cancel", (event) => {
+    event.preventDefault();
+    closeLoginModal();
+  });
+
+  loginForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try {
+      await login(loginEmail.value.trim(), loginPassword.value);
+      closeLoginModal();
+      updateAuthUi();
+      showToast("Connexion réussie.");
+      await refreshTimeline();
+    } catch (error) {
+      showToast(`Login failed: ${error.message}`);
+    }
+  });
+
+  micBtn?.addEventListener("click", async () => {
+    if (!getAccessToken()) return openLoginModal();
+    try {
+      if (state.mediaRecorder?.state === "recording") stopRecording();
+      else await startRecording();
+    } catch {
+      setAudioUi({ recording: false, hasAudio: false, status: "Permission micro refusée." });
+    }
+  });
+
+  audioClear?.addEventListener("click", clearRecording);
+
+  imagesInput?.addEventListener("change", () => {
+    const files = Array.from(imagesInput.files || []);
+    if (files.length > MAX_IMAGES_PER_ENTRY) {
+      showToast(`Maximum ${MAX_IMAGES_PER_ENTRY} images par entrée.`);
+    }
+    state.selectedImages = files.slice(0, MAX_IMAGES_PER_ENTRY);
+    clearImagesPreview();
+    state.selectedImages.slice(0, 9).forEach(addThumb);
+  });
+
+  composerForm?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!getAccessToken()) return openLoginModal();
+    await createEntry();
+  });
+
+  loadMoreBtn?.addEventListener("click", async () => {
+    if (state.nextOffset === null || state.nextOffset === undefined) return;
+    try {
+      await loadEntries(state.nextOffset);
+    } catch (error) {
+      showToast(`Impossible de charger plus: ${error.message}`);
     }
   });
 }
 
-if (audioClear) {
-  audioClear.addEventListener("click", () => clearRecording());
-}
-
+bindEvents();
+updateAuthUi();
 setAudioUi({ recording: false, hasAudio: false, status: "Prêt." });
+refreshTimeline();

@@ -27,8 +27,10 @@ class Settings(BaseSettings):
 
     allowed_origins: Annotated[list[str], NoDecode] = [
         "http://localhost:3000",
-        "http://localhost:8501",
+        "http://localhost:5173",
         "http://localhost:8000",
+        "http://localhost:8001",
+        "http://localhost:8501",
     ]
     allowed_hosts: Annotated[list[str], NoDecode] = [
         "localhost",

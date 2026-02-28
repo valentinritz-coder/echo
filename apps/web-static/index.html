@@ -40,7 +40,7 @@
 
         <nav class="topbar-actions" aria-label="Compte">
           <a class="topbar-pill new-link" href="/" aria-label="Tell a new memory">New memory</a>
-          <a class="topbar-pill login-link" href="/login">Log in</a>
+          <button class="topbar-pill login-link" id="auth-toggle" type="button">Log in</button>
         </nav>
       </div>
     </header>
@@ -51,6 +51,7 @@
           <div class="sidebar-inner">
             <div class="sidebar-head" aria-hidden="true"></div>
             <ul class="sidebar-list" id="sidebar-list" aria-label="Navigation timeline"></ul>
+            <button class="topbar-pill load-more" id="load-more-btn" type="button" hidden>Load more</button>
           </div>
         </nav>
       </aside>
@@ -59,6 +60,7 @@
         <h1>Que veux-tu transmettre aujourd’hui ?</h1>
 
 <form
+  id="composer-form"
   class="composer-grid"
   action="#"
   method="post"
@@ -137,6 +139,7 @@
   <!-- Ligne 3: SUBMIT (bas-droite) -->
   <div class="composer-submit">
     <button
+      id="submit-entry-btn"
       type="submit"
       class="icon-btn icon-btn--submit"
       aria-label="Envoyer"
@@ -150,7 +153,9 @@
         />
       </svg>
     </button>
-  </div>
+    </div>
+
+    <p id="composer-hint" class="muted composer-hint" aria-live="polite"></p>
 </form>
 
         <noscript>
@@ -160,6 +165,26 @@
         </noscript>
       </main>
     </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <dialog id="login-modal" class="login-modal">
+      <form id="login-form" class="login-card">
+        <h2>Log in</h2>
+        <label>
+          Email
+          <input id="login-email" name="email" type="email" required autocomplete="email" />
+        </label>
+        <label>
+          Password
+          <input id="login-password" name="password" type="password" required autocomplete="current-password" />
+        </label>
+        <div class="login-actions">
+          <button type="button" class="topbar-pill" id="login-cancel">Cancel</button>
+          <button type="submit" class="topbar-pill">Continue</button>
+        </div>
+      </form>
+    </dialog>
 
     <script src="./app.js" defer></script>
   </body>
