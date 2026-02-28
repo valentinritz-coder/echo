@@ -50,10 +50,10 @@ class Entry(Base):
         ForeignKey("users.id"), index=True, nullable=False
     )
     question_id: Mapped[int] = mapped_column(ForeignKey("questions.id"), nullable=False)
-    audio_path: Mapped[str] = mapped_column(String, nullable=False)
-    audio_mime: Mapped[str] = mapped_column(String, nullable=False)
-    audio_size: Mapped[int] = mapped_column(Integer, nullable=False)
-    audio_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    audio_path: Mapped[str | None] = mapped_column(String, nullable=True)
+    audio_mime: Mapped[str | None] = mapped_column(String, nullable=True)
+    audio_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     audio_duration_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
     text_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     is_frozen: Mapped[bool] = mapped_column(

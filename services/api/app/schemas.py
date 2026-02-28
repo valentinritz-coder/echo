@@ -37,8 +37,8 @@ class EntryOut(ORMBaseModel):
     id: str
     user_id: str
     question_id: int
-    audio_mime: str
-    audio_size: int
+    audio_mime: Optional[str]
+    audio_size: Optional[int]
     text_content: Optional[str] = None
     is_frozen: bool
     created_at: datetime
