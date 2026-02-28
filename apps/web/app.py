@@ -1,24 +1,20 @@
-import os
-from typing import Any
+from __future__ import annotations
+
+from datetime import datetime
+from pathlib import Path
+import sys
 
 import requests
 import streamlit as st
 
-PROJECT_NAME = "echo-mvp"
-API_BASE_URL = os.getenv("API_BASE_URL", "http://api:8000").rstrip("/")
-API_BASE_PATH = "/api/v1"
-ALLOWED_TYPES = ["mp3", "m4a", "mp4", "wav", "ogg"]
-MIME_TO_EXT = {
-    "audio/mpeg": "mp3",
-    "audio/mp4": "m4a",
-    "audio/x-m4a": "m4a",
-    "audio/wav": "wav",
-    "audio/x-wav": "wav",
-    "audio/ogg": "ogg",
-    "audio/webm": "webm",
-    "audio/3gpp": "3gp",
-}
+sys.path.append(str(Path(__file__).resolve().parent))
 
+from api_client import API_BASE_URL, APIClient, ApiClientError
+
+PROJECT_NAME = "echo-mvp"
+ALLOWED_AUDIO_TYPES = ["mp3", "m4a", "wav", "ogg", "webm", "aac", "3gp"]
+ALLOWED_IMAGE_TYPES = ["jpg", "jpeg", "png", "webp"]
+PAGE_LIMIT = 10
 
 st.set_page_config(page_title=PROJECT_NAME, layout="wide")
 st.title("Echo MVP (capsule de vie)")
@@ -26,185 +22,204 @@ st.title("Echo MVP (capsule de vie)")
 if "access_token" not in st.session_state:
     st.session_state.access_token = ""
 if "login_email" not in st.session_state:
-    st.session_state.login_email = os.getenv("ADMIN_EMAIL", "")
+    st.session_state.login_email = ""
 if "login_password" not in st.session_state:
-    st.session_state.login_password = os.getenv("ADMIN_PASSWORD", "")
+    st.session_state.login_password = ""
+if "entries_offset" not in st.session_state:
+    st.session_state.entries_offset = 0
+if "entries_limit" not in st.session_state:
+    st.session_state.entries_limit = PAGE_LIMIT
+if "last_page" not in st.session_state:
+    st.session_state.last_page = False
 
 
-def api_json_error(response: requests.Response) -> str:
+@st.cache_data(show_spinner=False, max_entries=512)
+def fetch_protected_bytes(url: str, token: str) -> bytes:
+    return APIClient(token).fetch_bytes(url)
+
+
+def format_created_at(value: str | None) -> str:
+    if not value:
+        return "Date inconnue"
     try:
-        payload = response.json()
-        if "error" in payload:
-            return payload["error"].get("message", str(payload["error"]))
-        return str(payload)
+        dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
-        return response.text
+        return value
+    return dt.strftime("%d/%m/%Y %H:%M")
 
 
-def check_api_health() -> None:
-    try:
-        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/health", timeout=5)
-        response.raise_for_status()
-        st.success("API connectée")
-    except requests.RequestException as exc:
-        st.error(f"API indisponible: {exc}")
+def handle_api_error(exc: Exception) -> None:
+    if isinstance(exc, ApiClientError) and exc.status_code == 401:
+        st.error("Session expirée, merci de vous reconnecter.")
+        st.session_state.access_token = ""
+        fetch_protected_bytes.clear()
+        st.rerun()
+    st.error(str(exc))
 
 
-def auth_headers() -> dict[str, str]:
-    if not st.session_state.access_token:
-        return {}
-    return {"Authorization": f"Bearer {st.session_state.access_token}"}
-
-
-def login() -> None:
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}{API_BASE_PATH}/auth/login",
-            json={"email": st.session_state.login_email.strip(), "password": st.session_state.login_password},
-            timeout=10,
-        )
-        if response.status_code >= 400:
-            st.error(f"Connexion refusée: {api_json_error(response)}")
-            return
-        st.session_state.access_token = response.json().get("access_token", "")
-        st.success("Connexion réussie")
-    except requests.RequestException as exc:
-        st.error(f"Erreur réseau pendant la connexion: {exc}")
-
-
-def fetch_today_question() -> dict[str, Any] | None:
-    try:
-        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/questions/today", headers=auth_headers(), timeout=10)
-        response.raise_for_status()
-        return response.json()
-    except requests.RequestException as exc:
-        st.error(f"Impossible de charger la question: {exc}")
-        return None
-
-
-def upload_entry(question_id: int, uploaded_file: Any) -> None:
-    try:
-        files = {"audio_file": (uploaded_file.name, uploaded_file.getvalue(), uploaded_file.type)}
-        data = {"question_id": str(question_id)}
-        response = requests.post(
-            f"{API_BASE_URL}{API_BASE_PATH}/entries",
-            data=data,
-            files=files,
-            headers=auth_headers(),
-            timeout=30,
-        )
-        if response.status_code >= 400:
-            st.error(f"Upload refusé: {api_json_error(response)}")
-            return
-        st.success("Entrée créée avec succès")
-    except requests.RequestException as exc:
-        st.error(f"Erreur réseau pendant l'upload: {exc}")
-
-
-def list_entries() -> list[dict[str, Any]]:
-    try:
-        response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries", headers=auth_headers(), timeout=10)
-        if response.status_code >= 400:
-            st.error(f"Impossible de charger la bibliothèque: {api_json_error(response)}")
-            return []
-        return response.json()
-    except requests.RequestException as exc:
-        st.error(f"Erreur réseau: {exc}")
-        return []
-
-
-@st.cache_data(show_spinner=False, max_entries=128)
-def fetch_audio_bytes(entry_id: str, access_token: str) -> bytes:
-    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
-    response = requests.get(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}/audio", headers=headers, timeout=30)
-    if response.status_code >= 400:
-        raise RuntimeError(api_json_error(response))
-    return response.content
-
-
-def download_filename(entry: dict[str, Any]) -> str:
-    mime = (entry.get("audio_mime") or "").lower()
-    ext = MIME_TO_EXT.get(mime)
-    if ext:
-        return f"entry-{entry['id']}.{ext}"
-    return f"entry-{entry['id']}"
-
-
-def delete_entry(entry_id: str) -> None:
-    try:
-        response = requests.delete(f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}", headers=auth_headers(), timeout=10)
-        if response.status_code >= 400:
-            st.error(f"Suppression impossible: {api_json_error(response)}")
-            return
-        fetch_audio_bytes.clear()
-        st.success("Entrée supprimée")
-    except requests.RequestException as exc:
-        st.error(f"Erreur réseau: {exc}")
+def refresh_entries_page() -> None:
+    fetch_protected_bytes.clear()
+    st.rerun()
 
 
 with st.sidebar:
     st.header("Session")
-    st.session_state.login_email = st.text_input("Email", value=st.session_state.login_email)
-    st.session_state.login_password = st.text_input("Mot de passe", value=st.session_state.login_password, type="password")
+    st.session_state.login_email = st.text_input(
+        "Email", value=st.session_state.login_email
+    )
+    st.session_state.login_password = st.text_input(
+        "Mot de passe", value=st.session_state.login_password, type="password"
+    )
+
     if st.button("Se connecter"):
-        login()
+        try:
+            token = APIClient().login(
+                st.session_state.login_email, st.session_state.login_password
+            )
+            st.session_state.access_token = token
+            st.success("Connexion réussie")
+        except (ApiClientError, requests.RequestException) as exc:
+            st.error(f"Connexion refusée: {exc}")
+
     if st.session_state.access_token:
         st.success("Connecté")
         if st.button("Se déconnecter"):
             st.session_state.access_token = ""
-            fetch_audio_bytes.clear()
+            fetch_protected_bytes.clear()
             st.rerun()
-    st.caption(f"API_BASE_URL: {API_BASE_URL}")
 
-check_api_health()
+    st.caption(f"ECHO_API_URL: {API_BASE_URL}")
 
 if not st.session_state.access_token:
     st.info("Veuillez vous connecter")
     st.stop()
 
-tab_question, tab_library = st.tabs(["Question du jour", "Bibliothèque"])
+client = APIClient(st.session_state.access_token)
 
-with tab_question:
-    st.subheader("Répondre à la question")
-    question = fetch_today_question()
+new_tab, list_tab = st.tabs(["New memory / Créer un souvenir", "List / Mes souvenirs"])
+
+with new_tab:
+    st.subheader("Créer un nouveau souvenir")
+    try:
+        question = client.get_today_question()
+    except (ApiClientError, requests.RequestException) as exc:
+        handle_api_error(exc)
+        question = None
+
     if question:
-        st.markdown(f"**{question['text']}**")
-        st.caption(f"Catégorie: {question['category']}")
+        st.markdown(f"**{question.get('text', 'Question indisponible')}**")
 
-        uploaded = st.file_uploader(
-            "Ajoutez un audio (max 25MB)",
-            type=ALLOWED_TYPES,
+        text_content = st.text_area(
+            "Texte du souvenir", placeholder="Ajoutez un texte optionnel..."
+        )
+        audio_file = st.file_uploader(
+            "Audio (optionnel)",
+            type=ALLOWED_AUDIO_TYPES,
             accept_multiple_files=False,
         )
-        if st.button("Envoyer", disabled=uploaded is None):
-            if uploaded is None:
-                st.warning("Sélectionnez un fichier audio.")
-            else:
-                upload_entry(question["id"], uploaded)
+        image_files = st.file_uploader(
+            "Images (optionnel)",
+            type=ALLOWED_IMAGE_TYPES,
+            accept_multiple_files=True,
+        )
 
-with tab_library:
-    st.subheader("Mes entrées")
-    entries = list_entries()
+        if st.button("Save"):
+            try:
+                entry = client.create_entry(
+                    question_id=question["id"],
+                    text_content=text_content,
+                    audio_file=audio_file,
+                )
+                entry_id = entry.get("id")
+                if not entry_id:
+                    raise ApiClientError("Réponse invalide: id d'entrée manquant")
+
+                image_errors: list[str] = []
+                for image in image_files or []:
+                    try:
+                        client.upload_image(entry_id, image)
+                    except ApiClientError as image_exc:
+                        if image_exc.status_code == 422:
+                            image_errors.append(f"{image.name}: {image_exc}")
+                        elif image_exc.status_code == 413:
+                            image_errors.append(f"{image.name}: image trop volumineuse")
+                        else:
+                            image_errors.append(f"{image.name}: {image_exc}")
+
+                if image_errors:
+                    st.warning("Entrée créée, mais certaines images ont échoué :")
+                    for err in image_errors:
+                        st.write(f"- {err}")
+                else:
+                    st.success("Souvenir enregistré avec succès")
+
+                refresh_entries_page()
+            except (ApiClientError, requests.RequestException) as exc:
+                handle_api_error(exc)
+
+with list_tab:
+    st.subheader("Mes souvenirs")
+
+    left, right = st.columns([1, 2])
+    with left:
+        if st.button("Prev", disabled=st.session_state.entries_offset == 0):
+            st.session_state.entries_offset = max(
+                0, st.session_state.entries_offset - st.session_state.entries_limit
+            )
+            refresh_entries_page()
+    with right:
+        if st.button("Next", disabled=st.session_state.last_page):
+            if not st.session_state.last_page:
+                st.session_state.entries_offset += st.session_state.entries_limit
+                refresh_entries_page()
+
+    st.caption(
+        f"offset={st.session_state.entries_offset} · limit={st.session_state.entries_limit}"
+    )
+
+    try:
+        entries = client.list_entries(
+            limit=st.session_state.entries_limit, offset=st.session_state.entries_offset
+        )
+    except (ApiClientError, requests.RequestException) as exc:
+        handle_api_error(exc)
+        entries = []
+
+    st.session_state.last_page = len(entries) < st.session_state.entries_limit
+
     if not entries:
-        st.write("Aucune entrée pour le moment.")
+        st.write("Aucun souvenir sur cette page.")
+
     for entry in entries:
         with st.container(border=True):
-            st.write(f"Entry: `{entry['id']}`")
-            st.write(f"Question ID: {entry['question_id']} · Taille: {entry['audio_size']} octets")
-            if st.button("▶ Lire", key=f"play-{entry['id']}"):
+            st.markdown(f"**{format_created_at(entry.get('created_at'))}**")
+            text_content = entry.get("text_content")
+            if text_content:
+                st.write(text_content)
+
+            assets = entry.get("assets") or []
+            if assets:
+                st.write("Images")
+                cols = st.columns(3)
+                for idx, asset in enumerate(assets):
+                    download_url = asset.get("download_url")
+                    if not download_url:
+                        continue
+                    with cols[idx % 3]:
+                        try:
+                            image_bytes = fetch_protected_bytes(
+                                download_url, st.session_state.access_token
+                            )
+                            st.image(image_bytes, use_container_width=True)
+                        except (ApiClientError, requests.RequestException) as exc:
+                            st.error(f"Image indisponible: {exc}")
+
+            audio_url = entry.get("audio_url")
+            if audio_url:
                 try:
-                    audio_bytes = fetch_audio_bytes(entry["id"], st.session_state.access_token)
-                except (requests.RequestException, RuntimeError) as exc:
-                    st.error(f"Lecture impossible: {exc}")
-                else:
-                    st.audio(audio_bytes, format=entry["audio_mime"])
-                    st.download_button(
-                        "Télécharger",
-                        data=audio_bytes,
-                        file_name=download_filename(entry),
-                        mime=entry["audio_mime"],
-                        key=f"download-{entry['id']}",
+                    audio_bytes = fetch_protected_bytes(
+                        audio_url, st.session_state.access_token
                     )
-            if st.button("Supprimer", key=f"delete-{entry['id']}"):
-                delete_entry(entry["id"])
-                st.rerun()
+                    st.audio(audio_bytes, format=entry.get("audio_mime") or None)
+                except (ApiClientError, requests.RequestException) as exc:
+                    st.error(f"Audio indisponible: {exc}")
