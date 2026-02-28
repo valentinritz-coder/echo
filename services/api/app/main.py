@@ -1,4 +1,5 @@
 from datetime import date
+from contextlib import asynccontextmanager
 import logging
 from pathlib import Path
 from typing import Literal
@@ -31,9 +32,29 @@ from app.security import get_current_user, hash_password
 from app.settings import settings
 from app.storage import ALLOWED_MIME_TYPES, stream_upload_to_disk
 
-app = FastAPI(title=settings.app_name, version=settings.app_version)
 logger = logging.getLogger(__name__)
 api_v1_router = APIRouter(prefix="/api/v1")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    configure_json_logging()
+    settings.data_dir.mkdir(parents=True, exist_ok=True)
+    settings.audio_dir.mkdir(parents=True, exist_ok=True)
+    if not inspect(engine).has_table("entries"):
+        logger.warning("Database not initialized. Run: alembic upgrade head")
+        yield
+        return
+
+    with Session(engine) as db:
+        _seed_admin_user(db)
+
+    yield
+
+
+app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
+
+
 FROZEN_ERROR = {
     "error_code": "ENTRY_FROZEN_IMMUTABLE",
     "detail": "Entry is frozen and cannot be modified",
@@ -85,19 +106,6 @@ SEED_QUESTIONS: list[tuple[str, str]] = [
     ("Quel objectif te motive pour demain ?", "projection"),
     ("Quelle émotion as-tu le plus ressentie aujourd'hui ?", "emotion"),
 ]
-
-
-@app.on_event("startup")
-def startup() -> None:
-    configure_json_logging()
-    settings.data_dir.mkdir(parents=True, exist_ok=True)
-    settings.audio_dir.mkdir(parents=True, exist_ok=True)
-    if not inspect(engine).has_table("entries"):
-        logger.warning("Database not initialized. Run: alembic upgrade head")
-        return
-
-    with Session(engine) as db:
-        _seed_admin_user(db)
 
 
 @app.exception_handler(HTTPException)
