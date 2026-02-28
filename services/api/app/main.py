@@ -246,7 +246,8 @@ def get_question_today(
 async def create_entry(
     question_id: int = Form(...),
     text_content: str | None = Form(default=None),
-    audio_file: UploadFile = File(...),
+    text: str | None = Form(default=None),
+    audio_file: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> Entry:
@@ -255,40 +256,69 @@ async def create_entry(
     if question is None:
         raise HTTPException(status_code=404, detail="Question not found")
 
-    content_type = audio_file.content_type or ""
-    if content_type not in ALLOWED_MIME_TYPES:
+    candidates = [text_content, text]
+    final_text = None
+    for candidate in candidates:
+        if candidate is None:
+            continue
+        normalized = candidate.strip()
+        if normalized != "":
+            final_text = normalized
+            break
+
+    if audio_file is None and final_text is None:
         raise HTTPException(
-            status_code=422,
+            status_code=400,
             detail={
-                "code": "unsupported_mime",
-                "message": "Unsupported audio MIME type",
+                "code": "entry_empty",
+                "message": "Either text or audio_file is required",
             },
         )
-
-    _validate_text_content(text_content)
+    if final_text is not None:
+        _validate_text_content(final_text)
 
     entry_id = str(uuid.uuid4())
-    ext = ALLOWED_MIME_TYPES[content_type]
-    relative_path = Path("audio") / f"{entry_id}{ext}"
-    absolute_path = settings.data_dir / relative_path
-    upload_info = await stream_upload_to_disk(
-        upload=audio_file,
-        dst_path=absolute_path,
-        max_bytes=settings.max_upload_bytes,
-        expected_mime=content_type,
-        expected_ext=ext,
-    )
+    relative_path: Path | None = None
+    content_type: str | None = None
+    audio_size: int | None = None
+    audio_sha256: str | None = None
+    audio_duration_ms: int | None = None
+
+    if audio_file is not None:
+        content_type = audio_file.content_type or ""
+        if content_type not in ALLOWED_MIME_TYPES:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": "unsupported_mime",
+                    "message": "Unsupported audio MIME type",
+                },
+            )
+
+        ext = ALLOWED_MIME_TYPES[content_type]
+        relative_path = Path("audio") / f"{entry_id}{ext}"
+        absolute_path = settings.data_dir / relative_path
+        upload_info = await stream_upload_to_disk(
+            upload=audio_file,
+            dst_path=absolute_path,
+            max_bytes=settings.max_upload_bytes,
+            expected_mime=content_type,
+            expected_ext=ext,
+        )
+        audio_size = int(upload_info["size"])
+        audio_sha256 = str(upload_info["sha256"])
+        audio_duration_ms = upload_info["duration_ms"]
 
     entry = Entry(
         id=entry_id,
         user_id=current_user.id,
         question_id=question_id,
-        audio_path=str(relative_path),
+        audio_path=str(relative_path) if relative_path is not None else None,
         audio_mime=content_type,
-        audio_size=int(upload_info["size"]),
-        audio_sha256=str(upload_info["sha256"]),
-        audio_duration_ms=upload_info["duration_ms"],
-        text_content=text_content,
+        audio_size=audio_size,
+        audio_sha256=audio_sha256,
+        audio_duration_ms=audio_duration_ms,
+        text_content=final_text,
     )
     db.add(entry)
     db.commit()

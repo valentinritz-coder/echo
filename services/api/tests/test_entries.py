@@ -232,6 +232,120 @@ def test_create_entry_with_text_content_and_readback(tmp_path, monkeypatch):
     assert fetched.json()["text_content"] == "hello"
 
 
+def test_create_entry_text_only_ok(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text": "hello"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text_content"] == "hello"
+    assert response.json()["audio_mime"] is None
+    assert response.json()["audio_size"] is None
+
+
+def test_create_entry_audio_only_ok(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id)},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["audio_mime"] == "audio/mpeg"
+
+
+def test_create_entry_text_and_audio_ok(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text": "hello"},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text_content"] == "hello"
+    assert response.json()["audio_mime"] == "audio/mpeg"
+    assert response.json()["audio_size"] == len(VALID_MP3_BYTES)
+
+
+def test_create_entry_rejects_empty(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id)},
+        headers=headers,
+    )
+
+    assert response.status_code == 400
+    assert response.json() == {
+        "error": {
+            "code": "entry_empty",
+            "message": "Either text or audio_file is required",
+        }
+    }
+
+
+def test_create_entry_prefers_first_non_empty_text_field(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text_content": "", "text": "hello"},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text_content"] == "hello"
+
+
+def test_create_entry_does_not_store_empty_text(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    response = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text": "   "},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["text_content"] is None
+
+
 def test_text_content_length_validation(tmp_path, monkeypatch):
     monkeypatch.setenv("MAX_TEXT_CHARS", "5")
     client = _build_client(tmp_path, monkeypatch)
