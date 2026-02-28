@@ -13,6 +13,7 @@ from fastapi import (
     Form,
     HTTPException,
     Query,
+    Request,
     UploadFile,
 )
 from fastapi.exceptions import RequestValidationError
@@ -279,6 +280,37 @@ def _parse_image_dimensions(path: Path, mime: str) -> tuple[int | None, int | No
     return None, None
 
 
+def _asset_download_url(request: Request, asset_id: str) -> str:
+    return str(request.url_for("download_asset", asset_id=asset_id))
+
+
+def _entry_audio_url(request: Request, entry_id: str) -> str:
+    return str(request.url_for("get_entry_audio", entry_id=entry_id))
+
+
+def _serialize_asset(request: Request, asset: EntryAsset) -> EntryAssetOut:
+    serialized = EntryAssetOut.model_validate(asset, from_attributes=True)
+    return serialized.model_copy(
+        update={"download_url": _asset_download_url(request, asset.id)}
+    )
+
+
+def _serialize_entry(request: Request, entry: Entry) -> EntryOut:
+    serialized = EntryOut.model_validate(entry, from_attributes=True)
+    assets = list(entry.assets or [])
+    assets = [asset for asset in assets if asset.asset_type == "image"]
+    return serialized.model_copy(
+        update={
+            "assets": [_serialize_asset(request, asset) for asset in assets],
+            "audio_url": (
+                _entry_audio_url(request, entry.id)
+                if entry.audio_path is not None and entry.audio_mime is not None
+                else None
+            ),
+        }
+    )
+
+
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
 def get_question_today(
     _: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -299,13 +331,14 @@ def get_question_today(
 
 @api_v1_router.post("/entries", response_model=EntryOut)
 async def create_entry(
+    request: Request,
     question_id: int = Form(...),
     text_content: str | None = Form(default=None),
     text: str | None = Form(default=None),
     audio_file: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Entry:
+) -> EntryOut:
     _ensure_questions_seeded(db)
     question = db.get(Question, question_id)
     if question is None:
@@ -378,11 +411,15 @@ async def create_entry(
     db.add(entry)
     db.commit()
     db.refresh(entry)
-    return entry
+    entry = db.execute(
+        select(Entry).options(selectinload(Entry.assets)).where(Entry.id == entry_id)
+    ).scalar_one()
+    return _serialize_entry(request, entry)
 
 
 @api_v1_router.get("/entries", response_model=EntriesListResponse)
 def list_entries(
+    request: Request,
     limit: int = Query(
         default=50, ge=1, description="Page size. Values above 200 are clamped to 200."
     ),
@@ -414,19 +451,23 @@ def list_entries(
     )
     next_offset = offset + len(entries) if len(entries) == clamped_limit else None
     return EntriesListResponse(
-        items=entries, next_offset=next_offset, limit=clamped_limit, offset=offset
+        items=[_serialize_entry(request, entry) for entry in entries],
+        next_offset=next_offset,
+        limit=clamped_limit,
+        offset=offset,
     )
 
 
 @api_v1_router.get("/entries/{entry_id}", response_model=EntryOut)
 def get_entry(
+    request: Request,
     entry_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> Entry:
+) -> EntryOut:
     entry = _get_entry_or_404(db, entry_id, load_assets=True)
     _ensure_owner(entry, current_user)
-    return entry
+    return _serialize_entry(request, entry)
 
 
 @api_v1_router.post("/entries/{entry_id}/freeze")
@@ -447,11 +488,12 @@ def freeze_entry(
 
 @api_v1_router.post("/entries/{entry_id}/assets", response_model=EntryAssetOut)
 async def upload_entry_asset(
+    request: Request,
     entry_id: str,
     file: UploadFile = File(...),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> EntryAsset:
+) -> EntryAssetOut:
     entry = _get_entry_or_404(db, entry_id)
     _ensure_owner(entry, current_user)
     _ensure_not_frozen(entry)
@@ -520,18 +562,19 @@ async def upload_entry_asset(
     db.add(asset)
     db.commit()
     db.refresh(asset)
-    return asset
+    return _serialize_asset(request, asset)
 
 
 @api_v1_router.get("/entries/{entry_id}/assets", response_model=list[EntryAssetOut])
 def list_entry_assets(
+    request: Request,
     entry_id: str,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[EntryAsset]:
+) -> list[EntryAssetOut]:
     entry = _get_entry_or_404(db, entry_id)
     _ensure_owner(entry, current_user)
-    return (
+    assets = (
         db.execute(
             select(EntryAsset)
             .where(EntryAsset.entry_id == entry_id, EntryAsset.asset_type == "image")
@@ -540,9 +583,10 @@ def list_entry_assets(
         .scalars()
         .all()
     )
+    return [_serialize_asset(request, asset) for asset in assets]
 
 
-@api_v1_router.get("/assets/{asset_id}")
+@api_v1_router.get("/assets/{asset_id}", name="download_asset")
 def download_asset(
     asset_id: str,
     current_user: User = Depends(get_current_user),
@@ -569,7 +613,7 @@ def download_asset(
     return FileResponse(path=path, media_type=asset.mime, filename=path.name)
 
 
-@api_v1_router.get("/entries/{entry_id}/audio")
+@api_v1_router.get("/entries/{entry_id}/audio", name="get_entry_audio")
 def get_entry_audio(
     entry_id: str,
     current_user: User = Depends(get_current_user),
