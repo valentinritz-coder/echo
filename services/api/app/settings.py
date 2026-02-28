@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     data_dir: Path = Path("/app/data")
     max_upload_size_mb: int = 25
+    max_upload_image_mb: int = 8
+    max_images_per_entry: int = 8
     # Maximum allowed size for optional entry text content.
     max_text_chars: int = 10_000
 
@@ -49,6 +51,14 @@ class Settings(BaseSettings):
     @property
     def audio_dir(self) -> Path:
         return self.data_dir / "audio"
+
+    @property
+    def images_dir(self) -> Path:
+        return self.data_dir / "images"
+
+    @property
+    def max_upload_image_bytes(self) -> int:
+        return self.max_upload_image_mb * 1024 * 1024
 
     @field_validator("allowed_origins", "allowed_hosts", mode="before")
     @classmethod

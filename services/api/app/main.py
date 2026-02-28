@@ -19,18 +19,29 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from sqlalchemy import inspect, select
+from sqlalchemy import func, inspect, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db import engine, get_db
 from app.middleware.request_id import RequestIdMiddleware, configure_json_logging
-from app.models import Entry, Question, User
+from app.models import Entry, EntryAsset, Question, User
 from app.routes.auth import router as auth_router
 from app.routes.system import router as system_router
-from app.schemas import EntriesListResponse, EntryOut, EntryUpdateIn, QuestionOut
+from app.schemas import (
+    EntriesListResponse,
+    EntryAssetOut,
+    EntryOut,
+    EntryUpdateIn,
+    QuestionOut,
+)
 from app.security import get_current_user, hash_password
 from app.settings import settings
-from app.storage import ALLOWED_MIME_TYPES, stream_upload_to_disk
+from app.storage import (
+    ALLOWED_IMAGE_MIME_TYPES,
+    ALLOWED_MIME_TYPES,
+    stream_upload_to_disk,
+    validate_image_signature,
+)
 
 logger = logging.getLogger(__name__)
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -41,6 +52,7 @@ async def lifespan(_: FastAPI):
     configure_json_logging()
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     settings.audio_dir.mkdir(parents=True, exist_ok=True)
+    settings.images_dir.mkdir(parents=True, exist_ok=True)
     if not inspect(engine).has_table("entries"):
         logger.warning("Database not initialized. Run: alembic upgrade head")
         yield
@@ -224,6 +236,49 @@ def _validate_text_content(text_content: str | None) -> None:
         )
 
 
+def _parse_image_dimensions(path: Path, mime: str) -> tuple[int | None, int | None]:
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None, None
+
+    if (
+        mime == "image/png"
+        and len(data) >= 24
+        and data.startswith(b"\x89PNG\r\n\x1a\n")
+    ):
+        width = int.from_bytes(data[16:20], "big")
+        height = int.from_bytes(data[20:24], "big")
+        return width, height
+
+    if mime == "image/jpeg":
+        idx = 2
+        total = len(data)
+        while idx + 9 < total:
+            if data[idx] != 0xFF:
+                idx += 1
+                continue
+            marker = data[idx + 1]
+            idx += 2
+            while marker == 0xFF and idx < total:
+                marker = data[idx]
+                idx += 1
+            if marker in {0xD8, 0xD9} or 0xD0 <= marker <= 0xD7:
+                continue
+            if idx + 1 >= total:
+                break
+            seg_len = (data[idx] << 8) + data[idx + 1]
+            if seg_len < 2 or idx + seg_len > total:
+                break
+            if marker in {0xC0, 0xC2} and seg_len >= 7:
+                height = (data[idx + 3] << 8) + data[idx + 4]
+                width = (data[idx + 5] << 8) + data[idx + 6]
+                return width, height
+            idx += seg_len
+
+    return None, None
+
+
 @api_v1_router.get("/questions/today", response_model=QuestionOut)
 def get_question_today(
     _: User = Depends(get_current_user), db: Session = Depends(get_db)
@@ -390,6 +445,130 @@ def freeze_entry(
     return {"status": "frozen", "id": entry_id, "is_frozen": True}
 
 
+@api_v1_router.post("/entries/{entry_id}/assets", response_model=EntryAssetOut)
+async def upload_entry_asset(
+    entry_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> EntryAsset:
+    entry = _get_entry_or_404(db, entry_id)
+    _ensure_owner(entry, current_user)
+    _ensure_not_frozen(entry)
+
+    existing_assets_count = db.execute(
+        select(func.count())
+        .select_from(EntryAsset)
+        .where(
+            EntryAsset.entry_id == entry_id,
+            EntryAsset.asset_type == "image",
+        )
+    ).scalar_one()
+    if existing_assets_count >= settings.max_images_per_entry:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "too_many_assets",
+                "message": (
+                    "Entry reached MAX_IMAGES_PER_ENTRY "
+                    f"({settings.max_images_per_entry})"
+                ),
+            },
+        )
+
+    content_type = file.content_type or ""
+    if content_type not in ALLOWED_IMAGE_MIME_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "unsupported_image_mime",
+                "message": "Unsupported image MIME type",
+            },
+        )
+
+    asset_id = str(uuid.uuid4())
+    ext = ALLOWED_IMAGE_MIME_TYPES[content_type]
+    relative_path = Path("images") / entry_id / f"{asset_id}{ext}"
+    absolute_path = settings.data_dir / relative_path
+
+    upload_info = await stream_upload_to_disk(
+        upload=file,
+        dst_path=absolute_path,
+        max_bytes=settings.max_upload_image_bytes,
+        expected_mime=content_type,
+        expected_ext=ext,
+        signature_validator=validate_image_signature,
+        invalid_signature_error_code="invalid_image_signature",
+        invalid_signature_error_message="Image signature does not match MIME type",
+        payload_too_large_error_message="Image file exceeds upload size limit",
+    )
+
+    width, height = _parse_image_dimensions(absolute_path, content_type)
+
+    asset = EntryAsset(
+        id=asset_id,
+        entry_id=entry.id,
+        user_id=current_user.id,
+        asset_type="image",
+        path=str(relative_path),
+        mime=content_type,
+        size=int(upload_info["size"]),
+        sha256=str(upload_info["sha256"]),
+        width=width,
+        height=height,
+    )
+    db.add(asset)
+    db.commit()
+    db.refresh(asset)
+    return asset
+
+
+@api_v1_router.get("/entries/{entry_id}/assets", response_model=list[EntryAssetOut])
+def list_entry_assets(
+    entry_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[EntryAsset]:
+    entry = _get_entry_or_404(db, entry_id)
+    _ensure_owner(entry, current_user)
+    return (
+        db.execute(
+            select(EntryAsset)
+            .where(EntryAsset.entry_id == entry_id, EntryAsset.asset_type == "image")
+            .order_by(EntryAsset.created_at.asc())
+        )
+        .scalars()
+        .all()
+    )
+
+
+@api_v1_router.get("/assets/{asset_id}")
+def download_asset(
+    asset_id: str,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> FileResponse:
+    asset = db.get(EntryAsset, asset_id)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Asset not found")
+    if asset.user_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "forbidden", "message": "Not allowed"},
+        )
+
+    if asset.asset_type != "image":
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "asset_not_image", "message": "Asset is not an image"},
+        )
+
+    path = settings.data_dir / asset.path
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Asset file not found")
+    return FileResponse(path=path, media_type=asset.mime, filename=path.name)
+
+
 @api_v1_router.get("/entries/{entry_id}/audio")
 def get_entry_audio(
     entry_id: str,
@@ -398,6 +577,12 @@ def get_entry_audio(
 ) -> FileResponse:
     entry = _get_entry_or_404(db, entry_id)
     _ensure_owner(entry, current_user)
+    if entry.audio_path is None or entry.audio_mime is None:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "no_audio", "message": "Entry has no audio"},
+        )
+
     path = settings.data_dir / entry.audio_path
     if not path.exists():
         raise HTTPException(status_code=404, detail="Audio file not found")

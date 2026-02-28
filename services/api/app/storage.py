@@ -1,7 +1,7 @@
 import hashlib
 import os
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 import wave
 
 from fastapi import HTTPException, UploadFile
@@ -20,6 +20,12 @@ ALLOWED_MIME_TYPES = {
     "audio/3gpp2": ".3g2",
     "audio/webm": ".webm",
     "audio/aiff": ".aiff",
+}
+
+ALLOWED_IMAGE_MIME_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
 }
 
 ALLOWED_EXTENSIONS_BY_MIME = {
@@ -85,6 +91,18 @@ def has_valid_signature(header: bytes, mime_type: str) -> bool:
     return False
 
 
+def validate_image_signature(header: bytes, mime_type: str) -> bool:
+    if mime_type == "image/jpeg":
+        return len(header) >= 3 and header.startswith(b"\xff\xd8\xff")
+    if mime_type == "image/png":
+        return len(header) >= 8 and header.startswith(b"\x89PNG\r\n\x1a\n")
+    if mime_type == "image/webp":
+        return (
+            len(header) >= 12 and header.startswith(b"RIFF") and header[8:12] == b"WEBP"
+        )
+    return False
+
+
 def _try_get_wav_duration_ms(path: Path) -> Optional[int]:
     try:
         with wave.open(str(path), "rb") as wav_file:
@@ -103,6 +121,10 @@ async def stream_upload_to_disk(
     max_bytes: int,
     expected_mime: str,
     expected_ext: str,
+    signature_validator: Callable[[bytes, str], bool] | None = None,
+    invalid_signature_error_code: str = "invalid_signature",
+    invalid_signature_error_message: str = "Audio signature does not match MIME type",
+    payload_too_large_error_message: str = "Audio file exceeds upload size limit",
 ) -> dict[str, Optional[int] | str]:
     suffix = Path(upload.filename or "").suffix.lower()
     allowed = ALLOWED_EXTENSIONS_BY_MIME.get(expected_mime, {expected_ext.lower()})
@@ -116,12 +138,13 @@ async def stream_upload_to_disk(
         )
 
     header = await upload.read(512)
-    if not header or not has_valid_signature(header, expected_mime):
+    signature_check = signature_validator or has_valid_signature
+    if not header or not signature_check(header, expected_mime):
         raise HTTPException(
             status_code=422,
             detail={
-                "code": "invalid_signature",
-                "message": "Audio signature does not match MIME type",
+                "code": invalid_signature_error_code,
+                "message": invalid_signature_error_message,
             },
         )
 
@@ -138,7 +161,7 @@ async def stream_upload_to_disk(
                     status_code=413,
                     detail={
                         "code": "payload_too_large",
-                        "message": "Audio file exceeds upload size limit",
+                        "message": payload_too_large_error_message,
                     },
                 )
             digest.update(header)
@@ -155,7 +178,7 @@ async def stream_upload_to_disk(
                         status_code=413,
                         detail={
                             "code": "payload_too_large",
-                            "message": "Audio file exceeds upload size limit",
+                            "message": payload_too_large_error_message,
                         },
                     )
                 digest.update(chunk)
