@@ -176,7 +176,9 @@ def _seed_admin_user(db: Session) -> None:
     db.commit()
 
 
-def _get_entry_or_404(db: Session, entry_id: str, *, load_assets: bool = False) -> Entry:
+def _get_entry_or_404(
+    db: Session, entry_id: str, *, load_assets: bool = False
+) -> Entry:
     query = select(Entry).where(Entry.id == entry_id)
     if load_assets:
         query = query.options(selectinload(Entry.assets))
