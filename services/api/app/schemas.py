@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Optional
 
 import pydantic
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class ORMBaseModel(BaseModel):
@@ -21,6 +21,18 @@ class QuestionOut(ORMBaseModel):
     is_active: bool
 
 
+class EntryAssetOut(ORMBaseModel):
+    id: str
+    asset_type: str
+    path: str
+    mime: str
+    size: int
+    sha256: str
+    created_at: datetime
+    width: Optional[int] = None
+    height: Optional[int] = None
+
+
 class EntryOut(ORMBaseModel):
     id: str
     user_id: str
@@ -30,6 +42,7 @@ class EntryOut(ORMBaseModel):
     text_content: Optional[str] = None
     is_frozen: bool
     created_at: datetime
+    assets: list[EntryAssetOut] = Field(default_factory=list)
 
 
 class EntryUpdateIn(BaseModel):
