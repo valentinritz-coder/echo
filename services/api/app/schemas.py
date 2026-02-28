@@ -29,6 +29,7 @@ class EntryAssetOut(ORMBaseModel):
     size: int
     sha256: str
     created_at: datetime
+    download_url: str = ""
     width: Optional[int] = None
     height: Optional[int] = None
 
@@ -40,6 +41,7 @@ class EntryOut(ORMBaseModel):
     audio_mime: Optional[str]
     audio_size: Optional[int]
     text_content: Optional[str] = None
+    audio_url: Optional[str] = None
     is_frozen: bool
     created_at: datetime
     assets: list[EntryAssetOut] = Field(default_factory=list)

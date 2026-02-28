@@ -6,6 +6,7 @@ from alembic.config import Config
 from fastapi.testclient import TestClient
 
 API_PREFIX = "/api/v1"
+VALID_MP3_BYTES = b"ID3\x04\x00\x00\x00\x00\x00\x00payload"
 PNG_1X1_BYTES = (
     b"\x89PNG\r\n\x1a\n"
     b"\x00\x00\x00\rIHDR"
@@ -112,6 +113,7 @@ def test_image_asset_upload_list_and_download(tmp_path, monkeypatch):
     assert uploaded["sha256"]
     assert uploaded["width"] == 1
     assert uploaded["height"] == 1
+    assert uploaded["download_url"].endswith(f"{API_PREFIX}/assets/{uploaded['id']}")
 
     disk_path = tmp_path / uploaded["path"]
     assert disk_path.exists()
@@ -121,6 +123,7 @@ def test_image_asset_upload_list_and_download(tmp_path, monkeypatch):
     assets = listed.json()
     assert len(assets) == 1
     assert assets[0]["id"] == uploaded["id"]
+    assert assets[0]["download_url"].endswith(f"{API_PREFIX}/assets/{uploaded['id']}")
 
     downloaded = client.get(f"{API_PREFIX}/assets/{uploaded['id']}", headers=headers)
     assert downloaded.status_code == 200
@@ -230,6 +233,47 @@ def test_image_asset_max_per_entry_limit(tmp_path, monkeypatch):
             "message": "Entry reached MAX_IMAGES_PER_ENTRY (1)",
         }
     }
+
+
+def test_get_entry_includes_audio_url_when_audio_is_present(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client, "user_a@example.com", "password-a")
+
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    text_only = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text_content": "hello"},
+        headers=headers,
+    )
+    assert text_only.status_code == 200
+    text_only_id = text_only.json()["id"]
+
+    text_only_entry = client.get(
+        f"{API_PREFIX}/entries/{text_only_id}", headers=headers
+    )
+    assert text_only_entry.status_code == 200
+    assert text_only_entry.json()["audio_url"] is None
+
+    with_audio = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text_content": "with audio"},
+        files={"audio_file": ("voice.mp3", BytesIO(VALID_MP3_BYTES), "audio/mpeg")},
+        headers=headers,
+    )
+    assert with_audio.status_code == 200
+    with_audio_id = with_audio.json()["id"]
+
+    entry_with_audio = client.get(
+        f"{API_PREFIX}/entries/{with_audio_id}", headers=headers
+    )
+    assert entry_with_audio.status_code == 200
+    assert entry_with_audio.json()["audio_url"] is not None
+    assert entry_with_audio.json()["audio_url"].endswith(
+        f"{API_PREFIX}/entries/{with_audio_id}/audio"
+    )
 
 
 def test_get_entry_audio_returns_no_audio_for_text_only_entry(tmp_path, monkeypatch):
