@@ -11,3 +11,5 @@ dependencies = [
   "streamlit>=1.38.0",
   "requests>=2.32.0"
 ]
+[tool.setuptools]
+py-modules = ["app", "api_client"]
