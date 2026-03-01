@@ -3,7 +3,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 COPY pyproject.toml ./
-COPY app.py ./
+COPY app.py api_client.py ./
 
 RUN pip install --no-cache-dir .
 
