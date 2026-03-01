@@ -1,46 +1,25 @@
 # Tests Streamlit en local (apps/web)
 
-Guide minimal et **vérifié** pour tester l'UI Streamlit (`apps/web`) avec l'API FastAPI (`services/api`).
+Guide local pour tester l'UI Streamlit (`apps/web`) avec l'API FastAPI (`services/api`) en restant aligné avec les fichiers réellement présents dans ce repo.
 
-## 1) Audit rapide: ce qui existe dans ce repo
+## 1) Où trouver l'info dans le repo
 
-### Statut des éléments demandés
-
-- **EXISTE** — `Makefile`
-- **EXISTE** — workflow GitHub Actions: `.github/workflows/ci.yml` (nom: `CI`)
-- **EXISTE** — dossier E2E: `services/api/tests_e2e/`
-- **EXISTE** — client web: `apps/web/api_client.py`
-- **EXISTE** — variables d'env d'exemple: `.env.example`
-- **EXISTE** — endpoint freeze: `POST /api/v1/entries/{entry_id}/freeze`
-- **EXISTE** — endpoint login: `POST /api/v1/auth/login`
-
-### Où chercher dans le repo
-
-- Vue d'ensemble + démarrage Docker + migrations + tests API/E2E: `README.md`
-- Commandes utilitaires Docker (`up/down/logs`): `Makefile`
-- Pipeline CI (lint + tests): `.github/workflows/ci.yml`
-- Endpoints API: `services/api/app/main.py`, `services/api/app/routes/auth.py`, `services/api/app/routes/system.py`
-- E2E API: `services/api/tests_e2e/`
-- Client HTTP Streamlit: `apps/web/api_client.py`
+- Démarrage projet, migrations, endpoints documentés et tests: `README.md`
+- Commandes utilitaires Docker: `Makefile`
+- Workflow CI présent: `.github/workflows/ci.yml`
+- Compose utilisé dans ce repo: `docker-compose.yml` (services `api` et `web`)
 - Variables d'environnement d'exemple: `.env.example`
-
----
+- Client HTTP utilisé par Streamlit: `apps/web/api_client.py`
+- Routes API implémentées: `services/api/app/main.py`, `services/api/app/routes/auth.py`, `services/api/app/routes/system.py`
+- Dossier E2E API: `services/api/tests_e2e/`
 
 ## 2) Prérequis
 
 - Python 3.11+
-- Docker + Docker Compose (recommandé pour un run local rapide)
-- Copier `.env.example` vers `.env`
+- Docker + Docker Compose (recommandé)
+- Fichier `.env` à la racine
 
-### `.env` (strictement basé sur `.env.example`)
-
-Variables présentes dans `.env.example`:
-
-- `APP_ENV`
-- `DATA_DIR`
-- `API_BASE_URL`
-
-Création du `.env`:
+Créer `.env`:
 
 **Linux/macOS**
 
@@ -54,17 +33,22 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-> Note importante: le web lit `ECHO_API_URL` dans `apps/web/api_client.py` (fallback `http://localhost:8000`).
-> Dans `docker-compose.yml`, le service `web` injecte `API_BASE_URL`, qui n'est pas lu par `apps/web/api_client.py`.
-> En local, définissez donc `ECHO_API_URL` si besoin.
+Variables présentes dans `.env.example` (et uniquement celles-ci):
 
----
+- `APP_ENV`
+- `DATA_DIR`
+- `API_BASE_URL`
+
+### Point important sur l'URL API côté Streamlit
+
+- `apps/web/api_client.py` lit la variable `ECHO_API_URL` (fallback: `http://localhost:8000`).
+- `docker-compose.yml` injecte `API_BASE_URL` au service `web`.
+
+Conséquence pratique: en exécution locale hors Docker, définissez `ECHO_API_URL` explicitement.
 
 ## 3) Lancer API + Streamlit
 
-## Option A — Docker Compose (depuis la racine)
-
-Services déclarés dans `docker-compose.yml`: `api` et `web`.
+### Option A — Docker Compose (racine du repo)
 
 **Linux/macOS**
 
@@ -80,23 +64,23 @@ docker compose up --build
 docker compose exec api alembic upgrade head
 ```
 
-Vérifications:
-
-```bash
-curl http://localhost:8000/api/v1/health
-```
-
-Ouvrir ensuite: `http://localhost:8501`
-
-Si vous avez un doute sur les services actifs:
+Vérifier les services actifs:
 
 ```bash
 docker compose ps
 ```
 
-## Option B — Sans Docker (2 terminaux)
+Vérifier API:
 
-### Terminal 1: API (`services/api`)
+```bash
+curl http://localhost:8000/api/v1/health
+```
+
+UI Streamlit: `http://localhost:8501`
+
+### Option B — Sans Docker (2 terminaux)
+
+#### Terminal 1: API (`services/api`)
 
 **Linux/macOS**
 
@@ -122,7 +106,7 @@ $env:DATA_DIR="../../data"; alembic upgrade head
 $env:DATA_DIR="../../data"; uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Terminal 2: Web (`apps/web`)
+#### Terminal 2: Streamlit (`apps/web`)
 
 **Linux/macOS**
 
@@ -146,89 +130,41 @@ python -m pip install -e .
 $env:ECHO_API_URL="http://localhost:8000"; streamlit run app.py --server.address=0.0.0.0 --server.port=8501
 ```
 
----
+## 4) Smoke tests manuels (UI)
 
-## 4) Smoke tests manuels (orientés utilisateur)
-
-## Jeu A — Login
+## A. Login
 
 1. Ouvrir `http://localhost:8501`
-2. Saisir email + mot de passe dans la sidebar
+2. Renseigner email + mot de passe dans la sidebar
 3. Cliquer **Se connecter**
-4. Attendu: message de succès + accès aux onglets de création/liste
+4. Attendu: accès aux onglets de création/liste
 
-## Jeu B — Création d'une entry
+> Le repo expose `POST /api/v1/auth/login`, mais ce guide ne suppose pas d'identifiants par défaut.
+
+## B. Création d'un souvenir
 
 1. Onglet **New memory / Créer un souvenir**
-2. Ajouter du texte (optionnel)
+2. Saisir un texte (optionnel)
 3. Ajouter un audio (optionnel)
 4. Cliquer **Save**
-5. Attendu: entry visible ensuite dans **List / Mes souvenirs**
+5. Attendu: souvenir visible dans **List / Mes souvenirs**
 
-## Jeu C — Liste / pagination
+## C. Liste et pagination
 
-1. Créer plusieurs entrées
-2. Onglet **List / Mes souvenirs**
-3. Vérifier **Prev** / **Next**
-4. Attendu: variation de `offset`, navigation cohérente
+1. Créer plusieurs souvenirs
+2. Aller sur **List / Mes souvenirs**
+3. Utiliser **Prev** / **Next**
+4. Attendu: navigation cohérente entre pages
 
-## Jeu D — Freeze (endpoint API existant)
+## D. Erreurs attendues
 
-L'UI ne montre pas de bouton freeze dédié.
-
-1. Créer une entry
-2. Appeler `POST /api/v1/entries/{entry_id}/freeze`
-3. Tenter une modification (`PATCH /api/v1/entries/{entry_id}` ou remplacement audio)
-4. Attendu: refus de modification (erreur métier côté API)
-
-## Jeu E — Erreurs attendues
-
-- token invalide/expiré -> 401
-- entry inexistante -> 404
-- accès à une entry d'un autre utilisateur -> 403
-- upload invalide/trop gros -> 4xx (souvent 422/413 selon validation/limite)
-
----
+- Si token invalide/non présent: 4xx attendu
+- Si ressource absente: 4xx attendu
+- Si upload invalide: 4xx attendu
 
 ## 5) Vérifier l'API quand l'UI bug
 
-## Endpoints utiles (vérifiés dans le code)
-
-- `POST /api/v1/auth/login`
-- `POST /api/v1/auth/refresh`
-- `GET /api/v1/health`
-- `GET /api/v1/readyz`
-- `GET /api/v1/questions/today`
-- `POST /api/v1/entries`
-- `GET /api/v1/entries`
-- `GET /api/v1/entries/{entry_id}`
-- `POST /api/v1/entries/{entry_id}/freeze`
-- `POST /api/v1/entries/{entry_id}/assets`
-- `GET /api/v1/entries/{entry_id}/assets`
-- `GET /api/v1/assets/{asset_id}`
-- `GET /api/v1/entries/{entry_id}/audio`
-- `PATCH /api/v1/entries/{entry_id}`
-- `POST /api/v1/entries/{entry_id}/audio`
-- `DELETE /api/v1/entries/{entry_id}/audio`
-- `DELETE /api/v1/entries/{entry_id}`
-
-## Login + token
-
-**Linux/macOS (curl)**
-
-```bash
-curl -X POST http://localhost:8000/api/v1/auth/login \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"admin-password"}'
-```
-
-**Windows PowerShell**
-
-```powershell
-Invoke-RestMethod -Method Post -Uri "http://localhost:8000/api/v1/auth/login" -ContentType "application/json" -Body '{"email":"admin@example.com","password":"admin-password"}'
-```
-
-## Checks minimaux
+Commandes minimales:
 
 **Linux/macOS**
 
@@ -244,65 +180,58 @@ Invoke-RestMethod -Method Get -Uri "http://localhost:8000/api/v1/health"
 Invoke-RestMethod -Method Get -Uri "http://localhost:8000/api/v1/readyz"
 ```
 
----
+Pour la liste complète des routes réellement implémentées, vérifier:
+
+- `services/api/app/main.py`
+- `services/api/app/routes/auth.py`
+- `services/api/app/routes/system.py`
 
 ## 6) Debug rapide
 
-## Logs API
+### Logs API
 
-### Docker
-
-**Linux/macOS / PowerShell**
+**Docker**
 
 ```bash
 docker compose logs -f api
 ```
 
-### Sans Docker
+**Sans Docker**
 
-- regarder la sortie du process `uvicorn` (terminal API)
+- suivre la sortie du terminal `uvicorn`
 
-## Logs Streamlit
+### Logs Streamlit
 
-### Docker
-
-**Linux/macOS / PowerShell**
+**Docker**
 
 ```bash
 docker compose logs -f web
 ```
 
-### Sans Docker
+**Sans Docker**
 
-- regarder la sortie du process `streamlit run app.py` (terminal web)
-
----
+- suivre la sortie du terminal `streamlit run app.py`
 
 ## 7) Checklist régression rapide
 
-- [ ] login OK / KO
-- [ ] chargement question du jour après login
-- [ ] création entrée texte
-- [ ] création entrée avec audio
-- [ ] liste des entrées visible
-- [ ] pagination Prev/Next fonctionnelle
-- [ ] lecture audio disponible si fichier présent
-- [ ] erreurs auth/ACL cohérentes (401/403/404)
-- [ ] freeze empêche bien les modifications
+- [ ] Login UI
+- [ ] Chargement question du jour
+- [ ] Création souvenir texte
+- [ ] Création souvenir avec audio
+- [ ] Affichage liste
+- [ ] Pagination Prev/Next
+- [ ] Lecture audio si présent
+- [ ] Erreurs 4xx correctement affichées en cas d'échec
 
----
-
-## 8) Tests automatisables réalistes (bonus)
-
-Déjà présents côté API:
+## 8) Tests auto déjà présents (API)
 
 - `services/api/tests/test_auth.py`
 - `services/api/tests/test_entries_list.py`
 - `services/api/tests/test_freeze.py`
 - `services/api/tests/test_upload.py`
-- E2E HTTP Docker: `services/api/tests_e2e/`
+- `services/api/tests_e2e/`
 
-Commandes utiles:
+Commandes:
 
 **Linux/macOS**
 
