@@ -211,6 +211,10 @@ alembic downgrade -1
 
 Erreurs JSON harmonisées pour validation et erreurs métier (`422`, `404`, `500`).
 
+## Tests Streamlit en local
+
+Voir le guide dédié: [`docs/tests_streamlit_local.md`](docs/tests_streamlit_local.md).
+
 ## Tests
 
 Depuis `services/api`:
