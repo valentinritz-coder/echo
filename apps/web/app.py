@@ -88,7 +88,7 @@ with st.sidebar:
             fetch_protected_bytes.clear()
             st.rerun()
 
-    st.caption(f"ECHO_API_URL: {API_BASE_URL}")
+    st.caption(f"URL API: {API_BASE_URL}")
 
 if not st.session_state.access_token:
     st.info("Veuillez vous connecter")
