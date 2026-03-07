@@ -5,7 +5,10 @@ from typing import Any
 
 import requests
 
-API_BASE_URL = os.getenv("ECHO_API_URL", "http://localhost:8000").rstrip("/")
+# Prefer API_BASE_URL (Docker Compose); fallback to ECHO_API_URL for local dev
+API_BASE_URL = (
+    os.getenv("API_BASE_URL") or os.getenv("ECHO_API_URL") or "http://localhost:8000"
+).rstrip("/")
 API_BASE_PATH = "/api/v1"
 TIMEOUT_SECONDS = 20
 
