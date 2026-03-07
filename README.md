@@ -149,6 +149,8 @@ Puis ouvrir:
 - API: http://localhost:8000/api/v1/health
 - Web: http://localhost:8501
 
+**Tester la V1 (parcours utilisateur)** : voir la fiche [Comment tester la V1](docs/test-v1.md) pour le parcours pas à pas (connexion → créer un souvenir → consulter la liste).
+
 ## Base SQLite + migrations
 
 La base SQLite est stockée dans `data/echo.db` (monté dans `/app/data` côté conteneur).
