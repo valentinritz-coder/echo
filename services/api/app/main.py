@@ -100,6 +100,8 @@ async def security_headers_middleware(request, call_next):
         response.headers["Content-Security-Policy"] = (
             "default-src 'none'; frame-ancestors 'none'"
         )
+    if request.url.path == "/api/v1/version":
+        response.headers["Cache-Control"] = "no-store"
     if settings.enable_hsts:
         response.headers["Strict-Transport-Security"] = (
             f"max-age={settings.hsts_max_age}; includeSubDomains"

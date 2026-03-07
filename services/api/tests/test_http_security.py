@@ -48,6 +48,15 @@ def test_security_headers_present_on_health(tmp_path, monkeypatch):
     assert response.headers["Cross-Origin-Resource-Policy"] == "same-site"
 
 
+def test_version_has_cache_control_no_store(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+
+    response = client.get(f"{API_PREFIX}/version")
+
+    assert response.status_code == 200
+    assert response.headers.get("Cache-Control") == "no-store"
+
+
 def test_trusted_host_rejects_unknown_host(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
 

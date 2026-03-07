@@ -39,6 +39,18 @@ def _build_client(tmp_path: Path, monkeypatch) -> TestClient:
     return TestClient(app.main.app)
 
 
+def test_version_returns_name_and_version(tmp_path, monkeypatch):
+    client = _build_client(tmp_path, monkeypatch)
+    r = client.get(f"{API_PREFIX}/version")
+    assert r.status_code == 200
+    body = r.json()
+    assert "name" in body
+    assert "version" in body
+    assert body["name"] == "echo-mvp"
+    assert isinstance(body["version"], str)
+    assert len(body["version"]) >= 1
+
+
 def test_health_has_request_id_header(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
     r = client.get(f"{API_PREFIX}/health")
