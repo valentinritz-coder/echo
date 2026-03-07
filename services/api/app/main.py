@@ -742,10 +742,11 @@ def delete_entry(
     _ensure_owner(entry, current_user)
     _ensure_not_frozen(entry)
 
-    path = settings.data_dir / entry.audio_path
+    if entry.audio_path is not None:
+        path = settings.data_dir / entry.audio_path
+        path.unlink(missing_ok=True)
     db.delete(entry)
     db.commit()
-    path.unlink(missing_ok=True)
     return {"status": "deleted", "id": entry_id}
 
 
