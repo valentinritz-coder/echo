@@ -251,6 +251,32 @@ def test_create_entry_text_only_ok(tmp_path, monkeypatch):
     assert response.json()["audio_size"] is None
 
 
+def test_delete_entry_without_audio(tmp_path, monkeypatch):
+    """delete_entry succeeds for entries that have no audio (text-only)."""
+    client = _build_client(tmp_path, monkeypatch)
+    headers = _auth_headers(client)
+    question_id = client.get(f"{API_PREFIX}/questions/today", headers=headers).json()[
+        "id"
+    ]
+
+    created = client.post(
+        f"{API_PREFIX}/entries",
+        data={"question_id": str(question_id), "text": "hello"},
+        headers=headers,
+    )
+    assert created.status_code == 200
+    entry_id = created.json()["id"]
+    assert created.json()["audio_mime"] is None
+
+    deleted = client.delete(f"{API_PREFIX}/entries/{entry_id}", headers=headers)
+    assert deleted.status_code == 200
+    assert deleted.json() == {"status": "deleted", "id": entry_id}
+
+    listed = client.get(f"{API_PREFIX}/entries", headers=headers)
+    assert listed.status_code == 200
+    assert listed.json()["items"] == []
+
+
 def test_create_entry_audio_only_ok(tmp_path, monkeypatch):
     client = _build_client(tmp_path, monkeypatch)
     headers = _auth_headers(client)
