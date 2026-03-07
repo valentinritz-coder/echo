@@ -20,13 +20,8 @@ Cette fiche permet à un testeur (sans connaissance du code) de lancer l’appli
    ```
    (Sous Linux/macOS : `cp .env.example .env`.)
 
-2. **Compte test**  
-   Dans `.env`, définir un email et un mot de passe pour le compte de test (créé automatiquement au premier démarrage de l’API en développement) :
-   ```env
-   ADMIN_EMAIL=admin@example.com
-   ADMIN_PASSWORD=votre-mot-de-passe
-   ```
-   Vous vous connecterez à l’interface avec ces identifiants.
+2. **Compte test et JWT**  
+   Le fichier `.env.example` contient déjà des valeurs pour le compte test (`ADMIN_EMAIL`, `ADMIN_PASSWORD`) et les secrets JWT (`JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`). Si vous avez copié `.env.example` vers `.env`, vous pouvez éventuellement modifier le mot de passe du compte test dans `.env` ; les secrets JWT doivent rester définis (sans eux, la connexion affiche « JWT secrets are not configured »).
 
 3. **Lancer les services**  
    À la racine du dépôt :
@@ -86,7 +81,7 @@ L’API est disponible en arrière-plan (pas besoin d’y accéder directement p
 
 ## En cas de problème
 
-- **« Connexion refusée »** : vérifier que les conteneurs sont bien démarrés (`docker compose ps`) et que `ADMIN_EMAIL` / `ADMIN_PASSWORD` sont bien définis dans `.env`, puis redémarrer l’API (`docker compose restart api`).
+- **« Connexion refusée »** ou **« JWT secrets are not configured »** : vérifier que `.env` contient bien `JWT_SECRET_KEY` et `JWT_REFRESH_SECRET_KEY` (présents dans `.env.example`). Vérifier aussi que les conteneurs sont démarrés (`docker compose ps`) et que `ADMIN_EMAIL` / `ADMIN_PASSWORD` sont définis, puis redémarrer l’API (`docker compose restart api`).
 - **Page blanche ou erreur sur le web** : vérifier que les migrations ont été appliquées (`docker compose exec api alembic upgrade head`) et que l’API répond : `curl http://localhost:8000/api/v1/health` doit retourner `{"status":"ok"}`.
 - **Aucune question du jour** : s’assurer que les migrations ont été exécutées (les questions sont créées automatiquement).
 
