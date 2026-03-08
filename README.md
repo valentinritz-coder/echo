@@ -238,6 +238,8 @@ Exemple dans `.env.example`:
 - `APP_ENV`: environnement applicatif (`development` par défaut)
 - `DATA_DIR`: dossier de données local (`./data`)
 - `API_BASE_URL`: URL de l'API consommée par Streamlit (Docker: `http://api:8000`). En local, on peut aussi utiliser `ECHO_API_URL` (fallback: `http://localhost:8000`)
+- `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`: secrets JWT (obligatoires pour le login ; voir `.env.example`)
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD`: compte test créé au 1er démarrage en dev (voir [Comment tester la V1](docs/test-v1.md))
 - `ALLOWED_ORIGINS`: liste CSV des origines CORS autorisées (défaut dev: `http://localhost:3000,http://localhost:8501,http://localhost:8000`)
 - `ALLOWED_HOSTS`: liste CSV des hosts HTTP autorisés (`localhost,127.0.0.1,testserver` par défaut)
 - `ENABLE_HSTS`: active l'en-tête `Strict-Transport-Security` (`false` par défaut)
