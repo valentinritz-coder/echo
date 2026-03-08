@@ -9,6 +9,8 @@
       name="description"
       content="echo — Timeline personnelle pour écrire, enregistrer et conserver des souvenirs."
     />
+    <!-- Optionnel : base URL de l'API (sinon window.ECHO_API_BASE_URL ou http://localhost:8000) -->
+    <meta name="echo-api-base" content="http://localhost:8000" />
 
     <title>echo — Accueil</title>
 
@@ -161,6 +163,7 @@
       </main>
     </div>
 
+    <script src="./api.js" defer></script>
     <script src="./app.js" defer></script>
   </body>
 </html>
