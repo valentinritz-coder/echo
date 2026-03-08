@@ -24,6 +24,7 @@ ALLOWED_MIME_TYPES = {
 
 ALLOWED_IMAGE_MIME_TYPES = {
     "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",  # alias often sent by browsers/Streamlit
     "image/png": ".png",
     "image/webp": ".webp",
 }
@@ -33,6 +34,10 @@ ALLOWED_EXTENSIONS_BY_MIME = {
     "audio/x-m4a": {".m4a", ".mp4"},
     "audio/ogg": {".ogg", ".oga"},
     "audio/aiff": {".aiff", ".aif"},
+    "image/jpeg": {".jpg", ".jpeg"},
+    "image/jpg": {".jpg", ".jpeg"},
+    "image/png": {".png"},
+    "image/webp": {".webp"},
 }
 
 WAV_MIME_TYPES = {"audio/wav", "audio/x-wav"}
@@ -92,7 +97,7 @@ def has_valid_signature(header: bytes, mime_type: str) -> bool:
 
 
 def validate_image_signature(header: bytes, mime_type: str) -> bool:
-    if mime_type == "image/jpeg":
+    if mime_type in ("image/jpeg", "image/jpg"):
         return len(header) >= 3 and header.startswith(b"\xff\xd8\xff")
     if mime_type == "image/png":
         return len(header) >= 8 and header.startswith(b"\x89PNG\r\n\x1a\n")
