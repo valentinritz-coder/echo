@@ -151,6 +151,8 @@ Puis ouvrir:
 
 **Tester la V1 (parcours utilisateur)** : voir la fiche [Comment tester la V1](docs/test-v1.md) pour le parcours pas à pas (connexion → créer un souvenir → consulter la liste).
 
+**Exposer pour un test externe** (tunnel ou déploiement minimal) : voir [Exposer l’app pour un test externe](docs/deploy-test.md).
+
 ## Base SQLite + migrations
 
 La base SQLite est stockée dans `data/echo.db` (monté dans `/app/data` côté conteneur).
