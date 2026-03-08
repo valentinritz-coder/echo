@@ -13,6 +13,18 @@ API_BASE_PATH = "/api/v1"
 TIMEOUT_SECONDS = 20
 
 
+def _mime_from_image_filename(name: str) -> str:
+    """Fallback MIME when UploadedFile.type is missing (e.g. Streamlit)."""
+    lower = name.lower()
+    if lower.endswith((".jpg", ".jpeg")):
+        return "image/jpeg"
+    if lower.endswith(".png"):
+        return "image/png"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    return "image/jpeg"
+
+
 class ApiClientError(Exception):
     def __init__(
         self,
@@ -122,7 +134,10 @@ class APIClient:
         return payload if isinstance(payload, dict) else {}
 
     def upload_image(self, entry_id: str, image_file: Any) -> dict[str, Any]:
-        files = {"file": (image_file.name, image_file.getvalue(), image_file.type)}
+        mime = getattr(image_file, "type", None) or _mime_from_image_filename(
+            getattr(image_file, "name", "") or ""
+        )
+        files = {"file": (image_file.name, image_file.getvalue(), mime)}
         response = requests.post(
             f"{API_BASE_URL}{API_BASE_PATH}/entries/{entry_id}/assets",
             files=files,

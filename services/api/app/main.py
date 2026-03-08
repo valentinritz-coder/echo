@@ -522,6 +522,11 @@ async def upload_entry_asset(
 
     content_type = file.content_type or ""
     if content_type not in ALLOWED_IMAGE_MIME_TYPES:
+        logger.warning(
+            "asset upload 422: unsupported_image_mime content_type=%r allowed=%s",
+            content_type,
+            list(ALLOWED_IMAGE_MIME_TYPES.keys()),
+        )
         raise HTTPException(
             status_code=422,
             detail={
