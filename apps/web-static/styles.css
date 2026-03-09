@@ -339,6 +339,20 @@ textarea::-webkit-scrollbar-button{
   height: 0;
 }
 
+.input-shell input{
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 0.95rem;
+  padding: 0.5rem 0;
+}
+
+.input-shell input::placeholder{ color: rgba(255,255,255,0.45); }
+
 /* Primary action */
 .primary-action{
   border: 0;
@@ -358,6 +372,20 @@ textarea::-webkit-scrollbar-button{
 .primary-action:hover{ background: var(--btn-bg-hover); }
 .primary-action:active{ transform: translateY(1px); background: var(--btn-bg-active); }
 .primary-action:focus-visible{ outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Login page */
+.login-form{
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: min(100%, 24rem);
+  margin-top: 1rem;
+}
+.login-error{
+  color: #e07c7c;
+  font-size: 0.9rem;
+  margin: 0;
+}
 
 /* Segmented control */
 .modes{

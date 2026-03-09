@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#0e1419" />
+    <meta name="description" content="echo — Connexion" />
+    <meta name="echo-api-base" content="http://localhost:8000" />
+
+    <title>echo — Connexion</title>
+
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+
+  <body>
+    <a class="sr-only" href="#main">Aller au contenu principal</a>
+
+    <div class="page-glow" aria-hidden="true"></div>
+
+    <header class="topbar" role="banner">
+      <div class="topbar-inner">
+        <a class="brand" href="./index.html" aria-label="echo (accueil)">
+          <svg class="brand-mark" viewBox="0 0 90 24" role="img" aria-label="echo">
+            <text x="0" y="18" font-family="Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="20" font-weight="600" letter-spacing="1" fill="currentColor">echo</text>
+          </svg>
+        </a>
+        <nav class="topbar-actions" aria-label="Navigation">
+          <a class="topbar-pill new-link" href="./index.html">Accueil</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main" class="hero login-page" role="main">
+      <h1>Connexion</h1>
+
+      <form id="login-form" class="login-form" aria-label="Se connecter" novalidate>
+        <div class="input-shell">
+          <label for="login-email" class="sr-only">Email</label>
+          <input type="email" id="login-email" name="email" autocomplete="email" placeholder="Email" required />
+        </div>
+        <div class="input-shell">
+          <label for="login-password" class="sr-only">Mot de passe</label>
+          <input type="password" id="login-password" name="password" autocomplete="current-password" placeholder="Mot de passe" required />
+        </div>
+        <p id="login-error" class="login-error" role="alert" aria-live="polite" hidden></p>
+        <button type="submit" class="topbar-pill primary-action">Se connecter</button>
+      </form>
+    </main>
+
+    <script src="./api.js"></script>
+    <script>
+      (function () {
+        var form = document.getElementById("login-form");
+        var errorEl = document.getElementById("login-error");
+
+        function showError(msg) {
+          errorEl.textContent = msg || "Identifiants incorrects.";
+          errorEl.hidden = false;
+        }
+
+        function hideError() {
+          errorEl.textContent = "";
+          errorEl.hidden = true;
+        }
+
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          hideError();
+
+          var email = document.getElementById("login-email").value.trim();
+          var password = document.getElementById("login-password").value;
+
+          if (!email || !password) {
+            showError("Veuillez remplir l’email et le mot de passe.");
+            return;
+          }
+
+          var submitBtn = form.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+
+          window.echoApi
+            .apiPost("/api/v1/auth/login", { email: email, password: password }, { onUnauthorized: function () { return true; } })
+            .then(function (data) {
+              if (data && data.access_token) {
+                window.echoApi.setAccessToken(data.access_token);
+                window.location.href = "./index.html";
+                return;
+              }
+              showError("Réponse invalide.");
+            })
+            .catch(function (err) {
+              if (err && err.statusCode === 401) {
+                showError("Email ou mot de passe incorrect.");
+              } else {
+                showError("Erreur de connexion. Vérifiez que l’API est accessible.");
+              }
+            })
+            .finally(function () {
+              submitBtn.disabled = false;
+            });
+        });
+      })();
+    </script>
+  </body>
+</html>
