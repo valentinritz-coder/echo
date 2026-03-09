@@ -48,7 +48,7 @@
 
   /**
    * Effectue un fetch vers l'API avec la base URL et le token.
-   * En cas de 401 : appelle onUnauthorized (si fourni), supprime le token, puis redirige vers /login
+   * En cas de 401 : appelle onUnauthorized (si fourni), supprime le token, puis redirige vers /login.html
    * sauf si onUnauthorized retourne true (pour éviter la redirection).
    *
    * @param {string} path - Chemin (ex: "/api/v1/auth/login", "/api/v1/entries")
@@ -71,7 +71,7 @@
         const preventRedirect = onUnauthorized();
         if (preventRedirect === true) return res;
       }
-      window.location.href = "/login";
+      window.location.href = "/login.html";
       return res;
     }
     return res;

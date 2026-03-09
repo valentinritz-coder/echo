@@ -57,4 +57,4 @@ Pour un accès plus durable (plusieurs jours, pas de tunnel à garder ouvert), v
 - Configurez un reverse proxy (ex. nginx ou Caddy) avec HTTPS devant le port 8501 (et éventuellement 8000 si besoin d’accès direct à l’API).
 - Respectez les précautions ci-dessus : compte test avec mot de passe dédié, pas de données sensibles, `APP_ENV=development` ou un environnement dédié au test.
 
-La fiche [Comment tester la V1](test-v1.md) reste valable pour le parcours (connexion → créer un souvenir → consulter la liste) ; seuls l’URL d’accès et la façon de l’obtenir changent (tunnel ou URL du serveur).
+Le parcours utilisateur (connexion → créer un souvenir → consulter la liste) est décrit dans [Tests et vérifications](testing.md) ; seuls l’URL d’accès et la façon de l’obtenir changent (tunnel ou URL du serveur).

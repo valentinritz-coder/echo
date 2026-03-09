@@ -149,7 +149,7 @@ Puis ouvrir:
 - API: http://localhost:8000/api/v1/health
 - Web: http://localhost:8501
 
-**Tester la V1 (parcours utilisateur)** : voir la fiche [Comment tester la V1](docs/test-v1.md) pour le parcours pas à pas (connexion → créer un souvenir → consulter la liste).
+**Tester (parcours utilisateur, dev local, tests auto)** : voir [Tests et vérifications](docs/testing.md).
 
 **Exposer pour un test externe** (tunnel ou déploiement minimal) : voir [Exposer l’app pour un test externe](docs/deploy-test.md).
 
@@ -215,9 +215,9 @@ alembic downgrade -1
 
 Erreurs JSON harmonisées pour validation et erreurs métier (`422`, `404`, `500`).
 
-## Tests Streamlit en local
+## Tests Streamlit / développement local
 
-Voir le guide dédié: [`docs/tests_streamlit_local.md`](docs/tests_streamlit_local.md).
+Voir [docs/testing.md](docs/testing.md) (parcours utilisateur, lancement local, tests automatisés).
 
 ## Tests
 
@@ -241,7 +241,7 @@ Exemple dans `.env.example`:
 - `DATA_DIR`: dossier de données local (`./data`)
 - `API_BASE_URL`: URL de l'API consommée par Streamlit (Docker: `http://api:8000`). En local, on peut aussi utiliser `ECHO_API_URL` (fallback: `http://localhost:8000`)
 - `JWT_SECRET_KEY`, `JWT_REFRESH_SECRET_KEY`: secrets JWT (obligatoires pour le login ; voir `.env.example`)
-- `ADMIN_EMAIL`, `ADMIN_PASSWORD`: compte test créé au 1er démarrage en dev (voir [Comment tester la V1](docs/test-v1.md))
+- `ADMIN_EMAIL`, `ADMIN_PASSWORD`: compte test créé au 1er démarrage en dev (voir [docs/testing.md](docs/testing.md))
 - `ALLOWED_ORIGINS`: liste CSV des origines CORS autorisées (défaut dev: `http://localhost:3000,http://localhost:8501,http://localhost:8000`)
 - `ALLOWED_HOSTS`: liste CSV des hosts HTTP autorisés (`localhost,127.0.0.1,testserver` par défaut)
 - `ENABLE_HSTS`: active l'en-tête `Strict-Transport-Security` (`false` par défaut)
