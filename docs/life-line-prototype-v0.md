@@ -1,28 +1,89 @@
 # Ligne de vie — Prototype v0 (Echo)
 
-Document de cadrage pour la feature « ligne de vie » : vision, périmètre phase 1, échelle temporelle, règle UX, critères de réussite, design tokens, structure du composant, issues et plan d’implémentation. Aucune intégration backend ni données réelles ; prototype autonome dans le lab dédié.
+Document de cadrage pour le prototype « Life Line » : vision, périmètre, direction visuelle, échelle temporelle, règle UX, critères de réussite, design tokens, structure du composant, issues et plan d’implémentation. Aucune intégration backend ni données réelles ; prototype autonome dans le lab dédié.
 
 ---
 
 ## 1. Vision
 
-La **ligne de vie** doit devenir une pièce maîtresse de l’interface Echo.
+La **Life Line** d’ECHO est une représentation visuelle de la vie de l’utilisateur, de la naissance à aujourd’hui.
 
 **Principes non négociables :**
 
-- **Axe horizontal unique** : la ligne est un axe horizontal, jamais vertical, en cercles ou en arbre.
-- **Vie complète** : elle représente la vie de l’utilisateur de la **naissance** jusqu’à l’**âge actuel**.
-- **Densité = épaisseur + intensité** : la densité de mémoire est représentée uniquement par l’épaisseur du trait et l’intensité de la couleur (zones pauvres = fines, pâles ; zones riches = épaisses, lumineuses).
-- **Aucun point, cercle ni icône sur la ligne** : pas de points, cercles, anneaux, icônes ou marqueurs sur la ligne elle-même.
-- **Esthétique** : organique, vivante, légèrement bioluminescente — filament vivant / plante luminescente, sobre et élégant.
+- **Une ligne horizontale unique** : droite, épaisse, continue, stable.
+- **Extrémités arrondies** : la ligne se termine en caps arrondis, sans angle vif.
+- **Forme constante** : pas de vague, pas de bosse, pas de pulsation comme principe central. La ligne ne se déforme pas.
+- **Vie complète** : elle représente la vie de l’utilisateur de la **naissance** jusqu’à **aujourd’hui**.
+- **Présence mémoire à l’intérieur** : les souvenirs ne déforment pas la forme. Ils se lisent par une **nuance visuelle sobre** à l’intérieur de la ligne : zones peu remplies = plus discrètes / moins lumineuses ; zones riches = plus lumineuses / plus pleines. La ligne reste toujours visible sur toute sa longueur.
+- **Aucun point, cercle ni icône sur la ligne** : pas de points, cercles, anneaux, icônes ou marqueurs posés sur la ligne elle-même.
+- **Symbolique** : la ligne représente la **continuité d’une vie**, pas une courbe de données. Pas de rendu ECG, waveform ou analytique.
 
-**À éviter** : effet néon agressif, waveform audio technique, visualisation analytique froide.
+**À éviter** : effet signal, visualisation de données, esthétique organique / filament vivant comme axe principal, impulsion lumineuse comme cœur du concept, variation d’épaisseur pour traduire la densité.
 
 ---
 
-## 2. Périmètre phase 1
+## 2. Phrase explicative obligatoire
 
-**Objectif** : valider le rendu visuel, les micro-interactions et l’impulsion lumineuse avant toute intégration produit.
+Cette phrase est une **clé de lecture** du concept et doit figurer dans le cadrage produit / design / UX :
+
+> **« Votre vie, de la naissance à aujourd’hui. Les zones plus lumineuses contiennent davantage de souvenirs. »**
+
+Elle sert de référence pour la copy, les tooltips d’aide et la validation de la compréhension utilisateur.
+
+---
+
+## 3. Repères temporels
+
+Les repères le long de la ligne sont **neutres, universels et sobres**. On ne veut pas de libellés interprétatifs (ex. « Enfance », « Jeune adulte »).
+
+**Exemples de repères attendus :**
+
+- Naissance  
+- 20 ans  
+- 40 ans  
+- 60 ans  
+- Aujourd’hui  
+
+Ils doivent être **discrets mais lisibles**, pour ancrer le sens gauche = passé, droite = présent, sans surcharger l’interface.
+
+---
+
+## 4. Accessibilité et UX
+
+Le concept doit être **compréhensible très vite**, y compris pour un public vieillissant.
+
+**Objectifs :**
+
+- L’utilisateur comprend **immédiatement** que la ligne représente sa vie.
+- La **gauche** = passé (naissance).
+- La **droite** = aujourd’hui.
+- Certaines **zones contiennent plus de souvenirs** que d’autres (nuance interne : plus lumineux = plus de souvenirs).
+
+La poésie visuelle est autorisée, mais **ne doit jamais nuire à la compréhension**. Le sens ne doit pas dépendre uniquement d’un effet subtil. La **lisibilité prime** sur l’ambiance.
+
+**Règle UX** : la Life Line doit être compréhensible en **moins de 2 secondes**. Tout rendu qui nécessite une explication pour être compris doit être simplifié.
+
+---
+
+## 5. Fond clair / fond sombre
+
+Le concept peut être validé sur **fond clair** comme sur fond sombre. Une image de référence a montré que le concept fonctionne très bien sur **fond blanc**, avec extrémités arrondies.
+
+**Position de cadrage :**
+
+- Le concept de la ligne peut être **validé sur fond clair**.
+- La compréhension pure semble **meilleure sur fond clair / blanc / très clair**.
+- Une **version sombre sobre** peut rester envisageable pour cohérence avec l’univers ECHO.
+- Le **fond ne doit jamais prendre le dessus sur la ligne** : la ligne est l’élément identitaire central.
+- **La lisibilité prime sur l’ambiance.**
+
+Les documents et le backlog **n’imposent pas** un fond sombre comme obligation absolue. Ils **autorisent la comparaison** entre une version claire et une version sombre sobre. La décision finale (fond clair vs sombre) peut être prise après validation du prototype.
+
+---
+
+## 6. Périmètre phase 1
+
+**Objectif** : valider le rendu visuel et les micro-interactions avant toute intégration produit.
 
 **Contraintes du prototype (explicites) :**
 
@@ -33,70 +94,64 @@ La **ligne de vie** doit devenir une pièce maîtresse de l’interface Echo.
 
 ---
 
-## 3. Concept visuel
+## 7. Concept visuel (synthèse)
 
-- Un **axe horizontal unique** ; pas de points, cercles, anneaux, icônes ou arbre sur la ligne.
-- **Densité** = épaisseur du trait + intensité de la couleur.
-- **Animation** : impulsion lumineuse douce qui peut parcourir la ligne ; sur « nouveau souvenir » simulé (année donnée), l’impulsion part de ce point vers la naissance et vers l’âge actuel. Lent, contemplatif.
+- **Une ligne horizontale** : droite, épaisse, continue, stable, extrémités arrondies.
+- **Forme constante** : pas de variation d’épaisseur pour la densité, pas de vague, pas de pulsation centrale.
+- **Présence mémoire** : traduite par une **nuance interne** (couleur / luminosité) : zones peu remplies = plus discrètes ; zones riches = plus lumineuses. La ligne reste toujours visible sur toute sa longueur.
+- **Repères temporels** : discrets, sobres (Naissance, 20 ans, 40 ans, 60 ans, Aujourd’hui).
 - **Interactions prototype** : hover → détection de zone + état actif ; tooltip → année + densité mock ; click → callback mock ou log. Pas de navigation métier.
 
 ---
 
-## 4. Échelle temporelle
+## 8. Échelle temporelle
 
-- La ligne représente la **vie complète** de l’utilisateur : de la **naissance** jusqu’à l’**âge actuel**.
-- Pour le **prototype v0**, la **granularité de base est l’année** : les données mock sont structurées **par année**, et la densité est **calculée par année**.
+- La ligne représente la **vie complète** : de la **naissance** jusqu’à **aujourd’hui**.
+- Pour le **prototype v0**, la **granularité de base est l’année** : les données mock sont structurées **par année**, et la présence mémoire (remplissage) est **calculée par année**.
 - Une évolution future vers un zoom (année → mois) est envisageable ; ce n’est **pas** le périmètre du prototype actuel.
 
 **Exemple de structure conceptuelle des données mock (année → densité, 0–1) :**
 
-| Année | Densité |
-|-------|---------|
-| 1990  | 0.1     |
-| 1991  | 0.0     |
-| 1992  | 0.4     |
-| 1993  | 0.8     |
+| Année | Densité (remplissage) |
+|-------|------------------------|
+| 1990  | 0.1                    |
+| 1991  | 0.0                    |
+| 1992  | 0.4                    |
+| 1993  | 0.8                    |
 
 Cette granularité annuelle est figée pour le v0 afin d’éviter toute ambiguïté technique.
 
 ---
 
-## 5. Règle UX
-
-**Lisibilité immédiate** : la ligne de vie doit être **compréhensible en moins de 2 secondes**. Si l’utilisateur doit réfléchir pour comprendre l’axe, la densité ou l’animation, alors le design est trop complexe.
-
-Cette règle sert de **critère de validation UX** du prototype : tout rendu ou interaction qui nécessite une explication pour être compris doit être simplifié.
-
----
-
-## 6. Critères de réussite du prototype
+## 9. Critères de réussite du prototype
 
 Pour considérer le prototype comme réussi :
 
 - La **ligne est compréhensible en moins de 2 secondes** (aligné avec la règle UX).
-- La **densité est immédiatement perceptible** : l’utilisateur perçoit sans effort les zones riches et pauvres en souvenirs.
-- L’**animation reste douce et non intrusive** : l’impulsion lumineuse ne distrait pas ni ne surcharge l’écran.
+- L’utilisateur perçoit **sans effort** : gauche = passé, droite = aujourd’hui, zones plus lumineuses = plus de souvenirs.
+- La **forme de la ligne reste constante** : pas de déformation, pas de rendu type signal ou waveform.
+- La **phrase explicative** (« Votre vie, de la naissance à aujourd’hui… ») peut accompagner le rendu sans contredire la perception visuelle.
 
 ---
 
-## 7. Design tokens
+## 10. Design tokens
 
-Avant de développer le composant, les **variables visuelles** sont figées dans une issue dédiée (« Design tokens — Life Line »). Exemples de paramètres à documenter :
+Les variables visuelles sont documentées dans **`docs/life-line-design-tokens.md`**. Elles couvrent notamment :
 
-- Couleur de fond
-- Couleur de ligne de base
-- Couleur densité faible / moyenne / forte
-- Intensité du glow
-- Épaisseur min / max de la ligne
-- Vitesse d’impulsion
+- Fond clair et fond sombre sobre
+- Ligne de base (épaisseur constante, extrémités arrondies)
+- Remplissage mémoire : faible / moyen / fort (nuance interne)
+- Hauteur de ligne, rayon d’arrondi
+- Texte principal, texte secondaire / repères
+- Glow léger optionnel (sans en faire le cœur du concept)
 
 **Livrable** : bloc de variables CSS ou tokens documentés (dans le lab, ex. `src/index.css` ou fichier dédié).
 
 ---
 
-## 8. Structure du composant
+## 11. Structure du composant
 
-Architecture indicative pour éviter un composant monolithique et garder un code lisible et maintenable.
+Architecture indicative pour un code lisible et maintenable.
 
 **Composant principal :**
 
@@ -104,88 +159,72 @@ Architecture indicative pour éviter un composant monolithique et garder un code
 
 **Sous-composants possibles :**
 
-- **LifeLineAxis** : rendu SVG principal de l’axe (conteneur de la ligne).
-- **LifeLineSegment** : rendu visuel d’un segment temporel / une tranche de densité (épaisseur + intensité par année ou par groupe d’années).
-- **LifeLinePulse** : animation d’impulsion lumineuse le long de la ligne.
+- **LifeLineAxis** : rendu SVG principal de l’axe (ligne droite, épaisse, continue, extrémités arrondies).
+- **LifeLineFill** (ou équivalent) : rendu du remplissage mémoire à l’intérieur de la ligne (nuance visuelle par zone), sans modifier la forme extérieure.
 - **LifeLineTooltip** : affichage d’information au survol (année, densité mock).
+- **LifeLineLabels** (ou équivalent) : repères temporels discrets (Naissance, 20 ans, 40 ans, 60 ans, Aujourd’hui).
 
-Cette structure est **indicative** : l’objectif est de séparer clairement les responsabilités (orchestration, rendu axe/segments, animation, feedback hover) sans imposer une découpe figée.
-
----
-
-## 9. Vue de comparaison de variantes
-
-Feature centrale pour Echo : pouvoir **comparer plusieurs rendus** de la ligne de vie côte à côte avec le **même dataset mock**.
-
-Exemples de variantes :
-
-- Ligne très sobre
-- Ligne organique
-- Ligne avec glow un peu plus marqué
-
-**But** : choisir la meilleure représentation visuelle avant de figer la direction design.
+Cette structure est **indicative** : l’objectif est de séparer les responsabilités (orchestration, rendu axe/remplissage, repères, feedback hover) sans imposer une découpe figée. Aucun sous-composant dédié à une « impulsion » ou à une animation centrale n’est requis pour le cœur du concept.
 
 ---
 
-## 10. Performance
+## 12. Vue de comparaison de variantes
 
-Contraintes techniques pour encadrer les choix d’implémentation du prototype :
+Possibilité de **comparer plusieurs rendus** de la Life Line côte à côte avec le **même dataset mock**, dans le cadre de la **même direction visuelle** (ligne stable, nuance interne).
+
+Exemples de variantes cohérentes :
+
+- Ligne très sobre vs ligne avec un peu plus de contraste
+- **Fond clair vs fond sombre sobre** (comparaison explicite autorisée par le cadrage)
+- Glow très léger vs sans glow
+
+**But** : choisir la meilleure déclinaison (fond, contraste, glow optionnel) avant de figer la direction design. Les variantes ne doivent pas réintroduire des directions divergentes (organique, impulsion centrale, épaisseur variable).
+
+---
+
+## 13. Performance
+
+Contraintes techniques pour le prototype :
 
 - Le prototype doit rester **fluide** avec environ **80 années simulées** (ordre de grandeur d’une vie complète).
-- L’**animation d’impulsion** ne doit pas provoquer de **re-renders inutiles** (privilégier CSS ou une logique d’animation isolée).
 - Éviter un **DOM trop lourd** : privilégier un **SVG simple** et des **interactions sobres** (pas de multiplication d’éléments par année si un rendu agrégé suffit).
 
 ---
 
-## 11. Milestone GitHub
+## 14. Milestone GitHub
 
 **Nom :** `ECHO — Life Line Prototype v0`
 
-**Objectif :** Prototype visuel autonome de la ligne de vie (axe horizontal, densité = épaisseur + intensité, aspect organique/luminescent, impulsion bilatérale, interactions mock), sans intégration backend ni métier.
+**Description (texte du milestone) :**
+
+> Prototype visuel autonome de la Life Line : une ligne horizontale unique, droite, épaisse, continue et stable, avec extrémités arrondies, représentant la vie de l’utilisateur de la naissance à aujourd’hui. La présence mémoire est traduite par une nuance visuelle sobre à l’intérieur de la ligne (zones plus lumineuses = plus de souvenirs), sans déformer sa forme. Repères temporels discrets et sobres (Naissance, 20 ans, 40 ans, 60 ans, Aujourd’hui). Prototype autonome dans le lab dédié : aucune intégration backend, aucune donnée réelle, données mock uniquement. Objectif : valider le rendu visuel et la lisibilité (compréhension en moins de 2 secondes), y compris sur fond clair et fond sombre sobre.
 
 ---
 
-## 12. Découpage des issues
+## 15. Découpage des issues (référence)
 
-| # | Titre | Objectif | Dépendances |
-|---|--------|----------|-------------|
-| 1 | **Spec produit et direction visuelle** | Cadrer vision, périmètre, rendu visuel, animation et interactions pour le prototype. | — |
-| 2 | **Design tokens — Life Line** | Définir les variables visuelles (couleur fond, ligne base, densité faible/moyenne/forte, glow, épaisseur min/max, vitesse impulsion). Livrable : bloc de variables CSS ou tokens documentés. | #1 |
-| 3 | **Création du lab autonome** | Créer `apps/lifeline-lab/` avec Vite, React, TypeScript, une page unique et un fond inspiré Echo. | #1, #2 |
-| 4 | **Modèle mock — densité temporelle** | Données factices structurées **par année** : une valeur de densité (0–1) par année. Structure lisible (tableau ou map année → densité), cohérente avec l’échelle temporelle v0. | #3 |
-| 5 | **Composant SVG — axe horizontal de base** | Un axe horizontal unique (ligne SVG), sans points, responsive. Utilise les données mock par année ; structure prête pour segments (LifeLineAxis / LifeLineSegment) selon la structure du composant. | #3, #4 |
-| 6 | **Rendu densité (épaisseur + intensité)** | Déduire de la densité mock par année : épaisseur du trait et intensité (opacité/couleur). Zones pauvres = fin/pâle, zones riches = épais/lumineux. Aspect organique. | #5 |
-| 7 | **Background et ambiance lumineuse** | Fond cohérent Echo (#0e1419), halo doux (type halo-soft), pas néon. Optionnel : léger glow le long de la ligne. | #3 |
-| 8 | **Hover et sélection de zone** | Détection de la zone temporelle (année) au survol, état actif, gestion du click (callback mock ou log). Pas de navigation métier. | #6 |
-| 9 | **Tooltip / overlay d’information** | Afficher année et densité mock au survol ; positionnement et style sobre. | #8 |
-| 10 | **Impulsion lumineuse bilatérale** | Animation douce : impulsion qui parcourt la ligne. Sur « nouveau souvenir » simulé (année donnée), impulsion part de ce point vers naissance et vers présent. Lent, contemplatif. Sans re-renders excessifs (voir contraintes performance). | #6 |
-| 11 | **Vue de comparaison de variantes** | Afficher plusieurs versions de la ligne de vie côte à côte avec le même dataset mock (sobre, organique, glow plus marqué). Choisir la meilleure représentation visuelle. | #6, #7 |
-| 12 | **Documentation finale et décision** | Doc : comment lancer le lab, choix retenus (variante, palette), respect de la règle UX (lisibilité &lt; 2 s) et des contraintes performance, décision « prêt pour phase 2 » ou itérations. | #1–#11 |
+Voir le document **Recadrage des issues** (livrable 4) pour le détail : quelles issues garder, renommer, réécrire, fermer ou mettre en parking, et quelles nouvelles issues créer. Le tableau ci-dessous est une **référence cible** alignée avec la nouvelle direction.
+
+| # | Titre | Objectif |
+|---|--------|----------|
+| — | Composant SVG — axe horizontal de base | Ligne horizontale unique, droite, épaisse, continue, extrémités arrondies, responsive. Forme constante. |
+| — | Rendu présence mémoire (nuance interne) | À l’intérieur de la ligne : zones peu remplies = plus discrètes ; zones riches = plus lumineuses. Pas de variation d’épaisseur. |
+| — | Repères temporels | Libellés discrets et sobres : Naissance, 20 ans, 40 ans, 60 ans, Aujourd’hui. Pas de libellés interprétatifs. |
+| — | Fond et lisibilité (clair / sombre) | Fond cohérent avec la ligne ; comparaison fond clair vs fond sombre sobre autorisée. La ligne reste l’élément central. |
+| — | Hover et sélection de zone | Détection de zone au survol, état actif, click (callback mock). |
+| — | Tooltip / overlay d’information | Année et densité mock au survol ; phrase explicative possible. |
+| — | Vue de comparaison de variantes | Variantes cohérentes (fond clair/sombre, contraste, glow optionnel), même direction visuelle. |
+| — | Documentation finale et décision | Doc : lancement du lab, choix retenus, respect règle UX et critères de réussite, décision « prêt pour phase 2 » ou itérations. |
 
 **Definition of done (commune)** : pas de régression sur l’existant ; pas de modification du backend ni des modèles métier ; pas de branchement sur les vrais souvenirs.
 
 ---
 
-## 13. Ordre d’implémentation recommandé
-
-1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12
-
-- **#1–#2** : cadrage et tokens (aucun code lab).
-- **#3** : création du lab (structure, pas encore la ligne).
-- **#4–#6** : données mock par année, axe SVG, rendu densité.
-- **#7** : background et ambiance.
-- **#8–#9** : interactions (hover/sélection, tooltip).
-- **#10** : impulsion lumineuse.
-- **#11** : vue de comparaison des variantes.
-- **#12** : documentation et décision.
-
----
-
-## 14. Fichiers principaux (lab, phase suivante)
+## 16. Fichiers principaux (lab, phase suivante)
 
 - `apps/lifeline-lab/package.json`, `index.html`, `tsconfig.json`, `vite.config.ts`
 - `apps/lifeline-lab/src/main.tsx`, `App.tsx`, `index.css` (design tokens)
-- `apps/lifeline-lab/src/components/LifeLine.tsx` (et sous-composants éventuels : LifeLineAxis, LifeLineSegment, LifeLinePulse, LifeLineTooltip)
+- `apps/lifeline-lab/src/components/LifeLine.tsx` (et sous-composants : LifeLineAxis, LifeLineFill, LifeLineLabels, LifeLineTooltip)
 - `apps/lifeline-lab/src/data/mockDensity.ts`
 
 Aucune modification dans `apps/web-static/`, `services/` ou ailleurs. Le lab se lance seul : `cd apps/lifeline-lab && npm i && npm run dev`.

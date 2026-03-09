@@ -27,36 +27,79 @@ body {
 }
 
 /* -------------------------
-   Design tokens (fond et ambiance)
+   Design tokens — thème clair = référence (prototype v0)
    ------------------------- */
 :root {
-  /* Fond */
-  --lifeline-bg: #0e1419;
+  /* Fond clair de référence */
+  --lifeline-bg: #fafafa;
 
-  /* Halo page (ambiance Echo) */
-  --lifeline-halo: rgba(96, 144, 178, 0.14);
+  /* Halo page : très discret sur fond clair, ne concurrence pas la ligne */
+  --lifeline-halo: rgba(100, 120, 140, 0.06);
   --lifeline-halo-blur: 70px;
 
-  /* Ligne de base (pour la suite) */
-  --lifeline-baseline: rgba(96, 144, 178, 0.18);
+  /* Ligne de base : neutre, en retrait par rapport au fill */
+  --lifeline-baseline: #d6dbe1;
 
-  /* Densité (pour la suite) */
-  --lifeline-density-low: rgba(96, 144, 178, 0.32);
-  --lifeline-density-mid: rgba(144, 178, 200, 0.58);
-  --lifeline-density-high: rgba(189, 213, 230, 0.85);
+  /* Axe : forme constante (issue #104), légèrement plus présente en hero */
+  --lifeline-height: 14px;
+  --lifeline-radius: 7px;
+  --lifeline-min-width: 320px;
 
-  /* Glow ligne (pour la suite) */
-  --lifeline-glow-color: rgba(96, 144, 178, 0.24);
-  --lifeline-glow-blur: 20px;
+  /* Remplissage mémoire (issue #105) : hiérarchie low < mid < high plus nette */
+  --lifeline-fill-low: #b7c5d3;
+  --lifeline-fill-mid: #88c4e8;
+  --lifeline-fill-high: #55dff2;
 
-  /* Épaisseur (pour la suite) */
-  --lifeline-stroke-min: 2px;
-  --lifeline-stroke-max: 12px;
+  /* Texte */
+  --lifeline-text-primary: #1f2933;
+  --lifeline-text-secondary: #66727f;
 
-  /* Impulsion (pour la suite) */
-  --lifeline-pulse-duration: 2.5s;
-  --lifeline-pulse-opacity: 0.7;
-  --lifeline-pulse-color: rgba(189, 213, 230, 0.9);
+  /* Repères temporels (issue #114) */
+  --lifeline-labels-font-size: 0.8125rem;
+  --lifeline-labels-gap: 0.375rem;
+  --lifeline-label-color: #4a5568;
+
+  /* Hero : rythme vertical */
+  --lab-hero-width: 44rem;
+  --lab-hero-eyebrow-size: 0.75rem;
+  --lab-hero-eyebrow-tracking: 0.22em;
+  --lab-hero-eyebrow-color: #7d8794;
+  --lab-hero-headline-size: 2.25rem;
+  --lab-hero-subtext-size: 0.9375rem;
+  --lab-hero-subtext-color: #5c6773;
+  --lab-subtext-highlight-color: #0891b2;
+  --lab-hero-gap-eyebrow: 0.625rem;
+  --lab-hero-gap-headline: 0.5rem;
+  --lab-hero-gap-subtext: 2.25rem;
+
+  /* Glow : désactivé par défaut sur fond clair */
+  --lifeline-glow-opacity: 0;
+}
+
+/* Thème sombre : variante secondaire (optionnel, .lab[data-theme="dark"]) */
+.lab[data-theme="dark"] {
+  --lifeline-bg: #0e1419;
+  --lifeline-halo: rgba(96, 144, 178, 0.08);
+  --lifeline-glow-opacity: 0.06;
+  --lifeline-baseline: #6b7280;
+  --lifeline-fill-low: #7c8ea3;
+  --lifeline-fill-mid: #74b7e6;
+  --lifeline-fill-high: #9ff4ff;
+  --lifeline-text-primary: #f0f0f0;
+  --lifeline-text-secondary: rgba(255, 255, 255, 0.78);
+  --lifeline-label-color: rgba(255, 255, 255, 0.72);
+}
+
+.lab[data-theme="dark"] .lab-eyebrow {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.lab[data-theme="dark"] .lab-subtext {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.lab[data-theme="dark"] .lab-subtext-highlight {
+  color: var(--lifeline-fill-high);
 }
 
 /* -------------------------
@@ -78,7 +121,7 @@ body {
     var(--lifeline-halo),
     transparent 76%
   );
-  opacity: 0.2;
+  opacity: var(--lifeline-glow-opacity, 0.04);
   filter: blur(var(--lifeline-halo-blur));
 }
 
@@ -95,35 +138,106 @@ body {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
-  padding: 2rem;
+  padding: 3rem 1.5rem;
 }
 
-.lab-preview {
+/* Hero : bloc central, peu d’éléments, hiérarchie forte */
+.lab-hero {
   width: 100%;
-  max-width: 80rem;
-  min-height: 12rem;
-  border-radius: 0.5rem;
+  max-width: var(--lab-hero-width);
+  text-align: center;
+}
+
+.lab-eyebrow {
+  margin: 0 0 var(--lab-hero-gap-eyebrow);
+  font-size: var(--lab-hero-eyebrow-size);
+  font-weight: 500;
+  letter-spacing: var(--lab-hero-eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--lab-hero-eyebrow-color);
+}
+
+.lab-headline {
+  margin: 0 0 var(--lab-hero-gap-headline);
+  font-size: var(--lab-hero-headline-size);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  color: var(--lifeline-text-primary);
+}
+
+.lab-subtext {
+  margin: 0 auto var(--lab-hero-gap-subtext);
+  font-size: var(--lab-hero-subtext-size);
+  line-height: 1.5;
+  color: var(--lab-hero-subtext-color);
+  max-width: 22em;
+}
+
+.lab-subtext-highlight {
+  font-weight: 600;
+  color: var(--lab-subtext-highlight-color);
+}
+
+.lab-hero .lifeline {
+  margin: 0 auto;
 }
 
 /* -------------------------
-   Life Line — axe et rendu densité
+   Life Line — objet central du hero
    ------------------------- */
 .lifeline {
   width: 100%;
+  min-width: var(--lifeline-min-width);
 }
 
-.lifeline-axis .lifeline-halo {
+.lifeline__axis {
+  position: relative;
+  width: 100%;
+  height: var(--lifeline-height);
+}
+
+/* Barre type pill : extrémités = demi-cercles de diamètre = hauteur (12px). */
+.lifeline__axis-track {
+  width: 100%;
+  height: 100%;
+  background: var(--lifeline-baseline);
+  border-radius: calc(var(--lifeline-height) / 2);
+}
+
+/* Remplissage mémoire (issue #105) : même forme que l’axe, nuance interne par année. */
+.lifeline__fill {
+  position: absolute;
+  inset: 0;
+  border-radius: calc(var(--lifeline-height) / 2);
+  overflow: hidden;
   pointer-events: none;
 }
 
-.lifeline-axis .lifeline-shape {
-  pointer-events: auto;
-  vector-effect: non-scaling-stroke;
+.lifeline__fill-inner {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
 }
 
-.lifeline-axis .lifeline-year-min,
-.lifeline-axis .lifeline-year-max {
-  fill: rgba(255, 255, 255, 0.28);
-  font-size: 8px;
+/* Repères temporels (issue #114) : discrets mais lisibles, sous la ligne. */
+.lifeline__labels {
+  position: relative;
+  width: 100%;
+  margin-top: var(--lifeline-labels-gap);
+  min-height: 1.25em;
+}
+
+.lifeline__label {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: var(--lifeline-labels-font-size);
   font-variant-numeric: tabular-nums;
+  color: var(--lifeline-label-color);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.lifeline__label--endpoint {
+  font-size: 0.9375rem;
 }
